@@ -1,0 +1,108 @@
+/* components.css
+   Styles for the side-panel components (split out of the old runtime-injected
+   <style> block in components-all.jsx). Import once from src/main.jsx. */
+
+.layer-panel, .device-panel, .macro-editor, .settings-panel, .debug-console {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.layer-panel h3, .device-panel h3, .macro-editor h3, .settings-panel h3, .debug-console h3 {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--accent);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+
+.layer-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.layer-btn { padding: 8px; font-size: 0.9rem; }
+
+.layer-btn.active {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-alt) 100%);
+  color: var(--bg-primary);
+  border-color: var(--accent);
+}
+
+.device-actions { display: flex; flex-direction: column; gap: 8px; }
+
+select {
+  padding: 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  border-radius: 2px;
+}
+
+.log-container {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 12px;
+  height: 300px;
+  overflow-y: auto;
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+}
+
+.log-entry {
+  color: var(--text-secondary);
+  line-height: 1.4;
+  margin-bottom: 4px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.log-entry:last-child { color: var(--accent); }
+
+.key-selector-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: var(--bg-tertiary);
+  border: 2px solid var(--accent);
+  border-radius: 4px;
+  padding: 24px;
+  max-width: 400px;
+  max-height: 70vh;
+  overflow-y: auto;
+  box-shadow: 0 0 40px rgba(0, 217, 255, 0.3);
+}
+
+.modal-content h4 { margin-bottom: 16px; color: var(--accent); }
+
+.key-list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.key-list button { padding: 10px; font-size: 0.8rem; }
+
+.settings-group { display: flex; flex-direction: column; gap: 8px; }
+
+.settings-group label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.settings-group input { cursor: pointer; }

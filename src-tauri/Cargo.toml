@@ -1,0 +1,22 @@
+[package]
+name = "iris-editor-tauri"
+version = "0.1.0"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "1.5", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+tauri = { version = "1.5", features = [ "dialog-open"] }
+tokio = { version = "1", features = ["full"] }
+
+# Raw-HID communication for the VIA protocol.
+# hidapi bundles its native backend, so no system HIDAPI install is required.
+hidapi = "2.6"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+opt-level = "s"

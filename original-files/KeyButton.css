@@ -1,0 +1,94 @@
+/* KeyButton.css */
+
+.key-button {
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  background: linear-gradient(135deg, #1a1f3a 0%, #0f1428 100%);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 2px;
+
+  /* 3D effect */
+  box-shadow:
+    0 4px 8px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.key-button:hover {
+  border-color: var(--accent);
+  background: linear-gradient(135deg, #1f2642 0%, #151a2f 100%);
+  box-shadow:
+    0 6px 12px rgba(0, 217, 255, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transform: translateY(-2px);
+}
+
+.key-button.pressed {
+  transform: translateY(2px);
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.4),
+    inset 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.key-button.selected {
+  border-color: var(--accent);
+  background: linear-gradient(135deg, rgba(0, 217, 255, 0.15) 0%, rgba(0, 217, 255, 0.05) 100%);
+  box-shadow:
+    0 0 0 2px var(--bg-tertiary),
+    0 0 15px rgba(0, 217, 255, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  color: var(--accent);
+}
+
+/* Thumb keys: same footprint as a normal key so they register with the
+   grid tracks, distinguished only by a slightly different tint. */
+.key-button.thumb {
+  background: linear-gradient(135deg, #1a2540 0%, #0f1a35 100%);
+  border-color: var(--border);
+}
+
+.key-button.thumb:hover {
+  background: linear-gradient(135deg, #1f2a50 0%, #151f40 100%);
+}
+
+.key-label {
+  font-size: 0.65rem;
+  line-height: 1;
+  text-align: center;
+  max-width: 100%;
+  word-break: break-word;
+  opacity: 0.9;
+}
+
+.key-indicator {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  font-size: 0.6rem;
+  color: var(--accent);
+  animation: pulse 1s infinite;
+}
+
+/* Responsive: adjust legend size only. Key footprint stays 48px so the
+   fixed 48px grid tracks and the stagger offsets remain in register. */
+@media (max-height: 700px) {
+  .key-button,
+  .key-label {
+    font-size: 0.6rem;
+  }
+}

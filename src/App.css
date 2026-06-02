@@ -1,0 +1,357 @@
+/* App.css - Iris-LM Editor Styling */
+/* Industrial/brutalist aesthetic with neon cyan accents */
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Syne:wght@400;500;700&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  /* Color palette */
+  --bg-primary: #0a0e27;      /* Deep navy */
+  --bg-secondary: #141829;    /* Slightly lighter */
+  --bg-tertiary: #1a1f3a;     /* Panel backgrounds */
+  --text-primary: #e0e6ff;    /* Light lavender */
+  --text-secondary: #8892b0;  /* Muted text */
+  --accent: #00d9ff;          /* Neon cyan */
+  --accent-alt: #00ff88;      /* Neon green */
+  --danger: #ff4757;          /* Error red */
+  --success: #2ed573;         /* Success green */
+  --border: #2a3055;          /* Subtle borders */
+
+  /* Fonts */
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-display: 'Syne', sans-serif;
+
+  /* Spacing */
+  --spacing: 8px;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  line-height: 1.5;
+  overflow: hidden;
+}
+
+/* =============================================================================
+   LAYOUT STRUCTURE
+   ============================================================================= */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  background: var(--bg-primary);
+}
+
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: calc(var(--spacing) * 2) calc(var(--spacing) * 3);
+  border-bottom: 2px solid var(--border);
+  background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+  animation: slideInDown 0.6s ease-out;
+}
+
+.header-title h1 {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  background: linear-gradient(90deg, var(--accent) 0%, var(--accent-alt) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 4px;
+}
+
+.header-title .subtitle {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.header-status {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 2);
+  padding: calc(var(--spacing)) calc(var(--spacing) * 2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: rgba(0, 217, 255, 0.02);
+}
+
+.status-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+.status-indicator.connected {
+  background: var(--success);
+  box-shadow: 0 0 10px var(--success);
+}
+
+.status-indicator.disconnected {
+  background: var(--danger);
+  box-shadow: 0 0 10px var(--danger);
+}
+
+.app-container {
+  display: grid;
+  grid-template-columns: 280px 1fr 280px;
+  gap: calc(var(--spacing) * 2);
+  padding: calc(var(--spacing) * 2);
+  flex: 1;
+  overflow: hidden;
+}
+
+/* =============================================================================
+   PANELS
+   ============================================================================= */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--spacing) * 2);
+  padding: calc(var(--spacing) * 2);
+  border: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  border-radius: 2px;
+  overflow-y: auto;
+  animation: slideIn 0.6s ease-out;
+}
+
+.panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.panel::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+.panel::-webkit-scrollbar-thumb {
+  background: var(--accent);
+  border-radius: 3px;
+}
+
+/* =============================================================================
+   EDITOR CONTAINER
+   ============================================================================= */
+
+.editor-container {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  border-radius: 2px;
+  overflow: hidden;
+  animation: slideIn 0.6s ease-out;
+}
+
+.tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+  padding: calc(var(--spacing)) 0;
+}
+
+.tab {
+  flex: 1;
+  padding: calc(var(--spacing) * 1.5) calc(var(--spacing) * 2);
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border-bottom: 2px solid transparent;
+  position: relative;
+}
+
+.tab:hover {
+  color: var(--text-primary);
+  background: rgba(0, 217, 255, 0.05);
+}
+
+.tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.tab-content {
+  flex: 1;
+  padding: calc(var(--spacing) * 2);
+  overflow: auto;
+}
+
+/* =============================================================================
+   BUTTONS & CONTROLS
+   ============================================================================= */
+
+button {
+  padding: calc(var(--spacing) * 1.25) calc(var(--spacing) * 2);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-radius: 2px;
+  position: relative;
+  overflow: hidden;
+}
+
+button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(0, 217, 255, 0.2), transparent);
+  transition: left 0.5s ease;
+}
+
+button:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 10px rgba(0, 217, 255, 0.3);
+  color: var(--accent);
+}
+
+button:hover::before {
+  left: 100%;
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+button.primary {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-alt) 100%);
+  border-color: var(--accent);
+  color: var(--bg-primary);
+  font-weight: 600;
+}
+
+button.primary:hover {
+  box-shadow: 0 0 20px rgba(0, 217, 255, 0.5);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* =============================================================================
+   ANIMATIONS
+   ============================================================================= */
+
+@keyframes slideInDown {
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(-10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@keyframes glow {
+  from {
+    box-shadow: 0 0 5px var(--accent);
+  }
+  to {
+    box-shadow: 0 0 20px var(--accent);
+  }
+}
+
+/* =============================================================================
+   RESPONSIVE
+   ============================================================================= */
+
+@media (max-width: 1400px) {
+  .app-container {
+    grid-template-columns: 1fr;
+  }
+
+  .left-panel,
+  .right-panel {
+    display: none;
+  }
+}
+
+/* =============================================================================
+   UTILITY CLASSES
+   ============================================================================= */
+
+.text-mono {
+  font-family: var(--font-mono);
+}
+
+.text-display {
+  font-family: var(--font-display);
+}
+
+.text-accent {
+  color: var(--accent);
+}
+
+.text-success {
+  color: var(--success);
+}
+
+.text-danger {
+  color: var(--danger);
+}
+
+.gap-sm {
+  gap: var(--spacing);
+}
+
+.gap-md {
+  gap: calc(var(--spacing) * 2);
+}
+
+.gap-lg {
+  gap: calc(var(--spacing) * 3);
+}
