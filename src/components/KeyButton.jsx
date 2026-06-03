@@ -4,7 +4,7 @@
 import React, { useState } from 'react';
 import './KeyButton.css';
 
-export default function KeyButton({ keyName, isSelected, onClick, isThumb = false }) {
+export default function KeyButton({ keyName, subLabel, isSelected, onClick, isThumb = false }) {
   const [isPressed, setIsPressed] = useState(false);
 
   const handleMouseDown = () => {
@@ -31,6 +31,7 @@ export default function KeyButton({ keyName, isSelected, onClick, isThumb = fals
       onMouseLeave={handleMouseUp}
       title={keyName}
     >
+      {subLabel && <span className="key-sublabel">{subLabel}</span>}
       <span className="key-label">{displayName}</span>
       {isSelected && <span className="key-indicator">→</span>}
     </button>
