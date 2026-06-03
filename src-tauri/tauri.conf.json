@@ -57,10 +57,13 @@
     "windows": [
       {
         "fullscreen": false,
-        "height": 600,
+        "height": 900,
+        "width": 1400,
+        "minHeight": 700,
+        "minWidth": 1100,
         "resizable": true,
-        "title": "Iris-LM Editor",
-        "width": 800
+        "maximized": true,
+        "title": "Iris-LM Editor"
       }
     ]
   }
