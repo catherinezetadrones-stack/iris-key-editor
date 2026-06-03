@@ -6,7 +6,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/tauri';
-import { HALVES, decodeQuantum } from '../keyboardLayout';
+import { HALVES, decodeQuantum, getSecondary } from '../keyboardLayout';
 import './KeyTest.css';
 
 const MO_BASE = 0x5220; // MO(n) = 0x5220 | n
@@ -204,7 +204,16 @@ function VisualView({ matrixState, allLayers }) {
               style={{ gridColumn: key.gridColumn, gridRow: key.gridRow, marginTop: key.marginTop }}
             >
               <div className={`test-key${pressed ? ' pressed' : ''}${key.thumb ? ' thumb' : ''}`}>
-                {labelFor(key, layerKeymap)}
+                {(() => {
+                  const code = layerKeymap?.[key.viaRow]?.[key.viaCol];
+                  const sub  = getSecondary(code);
+                  return (
+                    <>
+                      {sub && <span className="test-key-sub">{sub}</span>}
+                      <span>{labelFor(key, layerKeymap)}</span>
+                    </>
+                  );
+                })()}
               </div>
             </div>
           );

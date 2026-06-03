@@ -5,9 +5,11 @@
 // here; the Iris-LM PCB wiring is non-sequential.
 
 // ── Visual stagger (px margin-top per display column) ────────────────────────
-// Higher value = key sits lower on screen.  Outer/pinky columns drop the most.
-export const STAGGER_LEFT  = [48, 40, 32, 24, 16, 0];  // pinky→index
-export const STAGGER_RIGHT = [0, 16, 24, 32, 40, 48];  // index→pinky
+// Higher value = key sits lower on screen.
+// Profile peaks at the middle finger (d=3 left / d=2 right) and drops on
+// both sides — matching the physical Iris-LM column stagger.
+export const STAGGER_LEFT  = [20, 20, 7, 0, 4, 12];  // pinky-outer→index-inner
+export const STAGGER_RIGHT = [12, 4, 0, 7, 20, 20];  // index-inner→pinky-outer
 
 // ── Default legends (shown when no keymap is loaded) ─────────────────────────
 // Order: physical left-to-right as seen looking at the keyboard.
@@ -62,17 +64,21 @@ const RIGHT_THUMB_MATRIX = [[14,1],[14,0],[13,5],[13,4]];
 
 // ── CSS grid positions for thumb keys ────────────────────────────────────────
 // col/row here are CSS grid-column / grid-row values (not matrix coords).
+// Inner rotated keys (HOME/END) and outer keys (MO/LGUI) share the same row
+// so they sit at the same height, matching the VIA image.
+// col/row = CSS grid cell; xOff/yOff = px offset from that cell's top-left
+// (set via the thumb-editor.html tool to match the physical keyboard shape).
 const LEFT_THUMB_CELLS  = [
-  { col: 7, row: 3 }, // HOME      — beside G row  (visual slot 0)
-  { col: 7, row: 4 }, // SFT·ENT   — beside B row  (visual slot 1)
-  { col: 6, row: 5 }, // MO(1)     — below B        (visual slot 2)
-  { col: 5, row: 5 }, // LGUI      — below V        (visual slot 3)
+  { col: 7, row: 5, xOff:  -5, yOff: -23, rotation:  20 }, // HOME
+  { col: 7, row: 5, xOff: -24, yOff:  28, rotation:  20 }, // SFT·ENT
+  { col: 6, row: 5, xOff: -26, yOff:  15, rotation:   0 }, // MO(1)
+  { col: 5, row: 5, xOff: -21, yOff:   3, rotation:   0 }, // LGUI
 ];
 const RIGHT_THUMB_CELLS = [
-  { col: 1, row: 3 }, // END        — beside H row
-  { col: 1, row: 4 }, // LT3·SP     — beside N row
-  { col: 2, row: 5 }, // MO(2)      — below N
-  { col: 3, row: 5 }, // ,          — below M
+  { col: 1, row: 5, xOff:   5, yOff: -23, rotation: -20 }, // END
+  { col: 1, row: 5, xOff:  24, yOff:  28, rotation: -20 }, // LT3·SP
+  { col: 2, row: 5, xOff:  26, yOff:  15, rotation:   0 }, // MO(2)
+  { col: 3, row: 5, xOff:  21, yOff:   3, rotation:   0 }, // ,
 ];
 
 // ── Layout builder ────────────────────────────────────────────────────────────
@@ -121,7 +127,9 @@ function buildHalf(side) {
       label,
       gridColumn: thumbCells[t].col,
       gridRow:    thumbCells[t].row,
-      marginTop:  0,
+      marginTop:  thumbCells[t].yOff ?? 0,
+      marginLeft: thumbCells[t].xOff ?? 0,
+      rotation:   thumbCells[t].rotation,
       matrixRow:  mr,
       matrixCol:  mc,
       viaRow:     vr,
@@ -163,6 +171,15 @@ export const KEYCODE_MAP = (() => {
     0x4f: 'RGHT', 0x50: 'LEFT', 0x51: 'DOWN', 0x52: 'UP',
     0xe0: 'LCTL', 0xe1: 'LSFT', 0xe2: 'LALT', 0xe3: 'LGUI',
     0xe4: 'RCTL', 0xe5: 'RSFT', 0xe6: 'RALT', 0xe7: 'RGUI',
+    // Media / system (QMK ~0.10 consumer-page mapping)
+    0x00a5: 'PWR',  0x00a6: 'SLEP', 0x00a7: 'WAKE',
+    0x00a8: 'MUTE', 0x00a9: 'VOLU', 0x00aa: 'VOLD',
+    0x00ab: 'MNXT', 0x00ac: 'MPRV', 0x00ad: 'MSTP', 0x00ae: 'MPLY',
+    0x00af: 'MSEL', 0x00b0: 'EJCT',
+    0x00b1: 'MAIL', 0x00b2: 'CALC', 0x00b3: 'MYCM',
+    0x00b4: 'WSCH', 0x00b5: 'WHOM', 0x00b6: 'WBAK',
+    0x00b7: 'WFWD', 0x00b8: 'WSTP', 0x00b9: 'WREF', 0x00ba: 'WFAV',
+    0x00bb: 'BRIU', 0x00bc: 'BRID',
     // Common shifted symbols (S(kc) = 0x0200 | kc)
     0x0220: '!', 0x0221: '@', 0x0222: '#', 0x0223: '$', 0x0224: '%',
     0x0225: '^', 0x0226: '(', 0x0227: ')', 0x0228: '{', 0x022d: '_',
@@ -173,6 +190,20 @@ export const KEYCODE_MAP = (() => {
   for (let n = 0; n < 16; n++) m[0x5220 + n] = `MO(${n})`;
   return m;
 })();
+
+// ── Shifted (secondary) character for dual-legend keys ───────────────────────
+// Shown in the top-right corner of a key, mirroring physical keycap printing.
+const SECONDARY_MAP = {
+  0x001e: '!', 0x001f: '@', 0x0020: '#', 0x0021: '$', 0x0022: '%',
+  0x0023: '^', 0x0024: '&', 0x0025: '*', 0x0026: '(', 0x0027: ')',
+  0x002d: '_', 0x002e: '+', 0x002f: '{', 0x0030: '}', 0x0031: '|',
+  0x0033: ':', 0x0034: '"', 0x0035: '~', 0x0036: '<', 0x0037: '>',
+  0x0038: '?',
+};
+
+export function getSecondary(code) {
+  return SECONDARY_MAP[code] ?? null;
+}
 
 // Decode a keycode to a short display name.
 // Returns null if the code is completely unknown (caller shows hex fallback).
@@ -188,19 +219,30 @@ export function decodeQuantum(code) {
     const keyName = KEYCODE_MAP[basic] ?? `0x${basic.toString(16)}`;
     return `LT${layer}·${keyName}`;
   }
-  // QK_TOGGLE_LAYER: 0x5230–0x523F → TG(n)
-  if ((code & 0xFFF0) === 0x5230) return `TG(${code & 0xf})`;
   // QK_TO: 0x5200–0x521F → TO(n)
   if (code >= 0x5200 && code <= 0x521f) return `TO(${code & 0x1f})`;
+  // QK_TOGGLE_LAYER: 0x5230–0x523F → TG(n)
+  if ((code & 0xFFF0) === 0x5230) return `TG(${code & 0xf})`;
+  // QK_LAYER_TAP_TOGGLE: 0x5240–0x524F → TT(n)
+  if ((code & 0xFFF0) === 0x5240) return `TT(${code & 0xf})`;
+  // QK_DEF_LAYER: 0x5250–0x525F → DF(n)
+  if ((code & 0xFFF0) === 0x5250) return `DF(${code & 0xf})`;
   // QK_ONE_SHOT_LAYER: 0x5260–0x526F → OSL(n)
   if ((code & 0xFFF0) === 0x5260) return `OSL(${code & 0xf})`;
-  // QK_MOD_TAP: 0x6000–0x7FFF → MT·key
-  if (code >= 0x6000 && code <= 0x7fff) {
-    const basic = code & 0x00ff;
-    return `MT·${KEYCODE_MAP[basic] ?? `0x${basic.toString(16)}`}`;
-  }
-  // VIA dynamic macros: 0x7700–0x771F → MACRO(n)
+  // VIA dynamic macros: 0x7700–0x771F — must precede the MT range check below
   if (code >= 0x7700 && code <= 0x771f) return `M(${code - 0x7700})`;
+  // QK_MOD_TAP: 0x6000–0x7FFF → MOD·key
+  if (code >= 0x6000 && code <= 0x7fff) {
+    const mod   = (code >> 8) & 0x1f;
+    const basic = code & 0x00ff;
+    const key   = KEYCODE_MAP[basic] ?? `0x${basic.toString(16)}`;
+    const MOD_NAMES = {
+      0x01: 'CTL',  0x02: 'SFT',  0x04: 'ALT',  0x08: 'GUI',
+      0x11: 'RCTL', 0x12: 'RSFT', 0x14: 'RALT', 0x18: 'RGUI',
+      0x07: 'MEH',  0x0f: 'HYPR', 0x1c: 'RAGR',
+    };
+    return `${MOD_NAMES[mod] ?? `MT${mod.toString(16)}`}·${key}`;
+  }
 
   return null; // caller will show hex
 }

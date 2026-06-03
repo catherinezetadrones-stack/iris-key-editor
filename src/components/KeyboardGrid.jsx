@@ -1,12 +1,6 @@
-// components/KeyboardGrid.jsx
-// Visual Iris-LM layout editor.  Matrix coordinates and key names come from
-// keyboardLayout.js, which is the single source of truth for physical↔matrix
-// mapping (measured from real hardware with the Raw Matrix tool).
-
-import React, { useState } from 'react';
+import React from 'react';
 import KeyButton from './KeyButton';
-import KeySelector from './KeySelector';
-import { HALVES, decodeQuantum } from '../keyboardLayout';
+import { HALVES, decodeQuantum, getSecondary } from '../keyboardLayout';
 import './KeyboardGrid.css';
 
 function labelFor(key, keymap) {
@@ -18,35 +12,40 @@ function labelFor(key, keymap) {
   return `0x${code.toString(16).padStart(4, '0')}`;
 }
 
-export default function KeyboardGrid({ keymap, currentLayer, selectedKey, onKeySelect, onKeyChange }) {
-  const [showSelector, setShowSelector] = useState(false);
-  const [selectorKey, setSelectorKey] = useState(null);
-
+export default function KeyboardGrid({ keymap, currentLayer, selectedKey, onKeySelect, onKeyRightClick }) {
   const handleKeyClick = (viaRow, viaCol) => {
-    setSelectorKey({ row: viaRow, col: viaCol });
-    setShowSelector(true);
     onKeySelect?.({ row: viaRow, col: viaCol });
   };
 
-  const handleKeySelect = (keyName, keycode) => {
-    if (selectorKey) {
-      onKeyChange?.(selectorKey.row, selectorKey.col, keycode);
-    }
-    setShowSelector(false);
+  const handleDeselect = () => {
+    onKeySelect?.(null);
+  };
+
+  const handleKeyRightClick = (e, viaRow, viaCol) => {
+    e.preventDefault();
+    const code = keymap?.[viaRow]?.[viaCol];
+    if (code != null) onKeyRightClick?.({ code });
   };
 
   const renderHalf = (side) => (
     <div className={`keyboard-half ${side}`}>
-      <div className="hand-label">{side.toUpperCase()}</div>
       <div className="key-grid">
         {HALVES[side].map((key) => (
           <div
             key={key.id}
             className="key-cell"
-            style={{ gridColumn: key.gridColumn, gridRow: key.gridRow, marginTop: key.marginTop }}
+            style={{
+              gridColumn: key.gridColumn,
+              gridRow:    key.gridRow,
+              marginTop:  key.marginTop,
+              marginLeft: key.marginLeft,
+              transform:  key.rotation ? `rotate(${key.rotation}deg)` : undefined,
+            }}
+            onContextMenu={(e) => handleKeyRightClick(e, key.viaRow, key.viaCol)}
           >
             <KeyButton
               keyName={labelFor(key, keymap)}
+              subLabel={getSecondary(keymap?.[key.viaRow]?.[key.viaCol])}
               isThumb={key.thumb}
               isSelected={selectedKey?.row === key.viaRow && selectedKey?.col === key.viaCol}
               onClick={() => handleKeyClick(key.viaRow, key.viaCol)}
@@ -58,10 +57,16 @@ export default function KeyboardGrid({ keymap, currentLayer, selectedKey, onKeyS
   );
 
   return (
-    <div className="keyboard-grid">
+    <div className="keyboard-grid" onContextMenu={(e) => e.preventDefault()}>
       <div className="grid-info">
         <h2>Layer {currentLayer}</h2>
-        <span className="info-text">Click keys to remap</span>
+        {selectedKey ? (
+          <button className="deselect-btn" onClick={handleDeselect}>
+            Deselect key
+          </button>
+        ) : (
+          <span className="info-text">Click keys to remap</span>
+        )}
       </div>
 
       <div className="keyboard">
@@ -69,14 +74,6 @@ export default function KeyboardGrid({ keymap, currentLayer, selectedKey, onKeyS
         <div className="keyboard-divider" />
         {renderHalf('right')}
       </div>
-
-      {showSelector && (
-        <KeySelector
-          currentKey={selectorKey}
-          onSelect={handleKeySelect}
-          onClose={() => setShowSelector(false)}
-        />
-      )}
     </div>
   );
 }

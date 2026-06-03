@@ -4,8 +4,7 @@
    Each half is a 7-column grid: 6 finger columns + 1 inner column that the
    thumb cluster reaches into. Vertical stagger and thumb positions are set
    per-key with inline grid styles from KeyboardGrid.jsx, so this file only
-   establishes the grid and sizing. The stagger offsets in the JSX assume a
-   48px key, so the grid tracks are fixed at 48px to stay in register. */
+   establishes the grid and sizing. Grid tracks are fixed at 56px. */
 
 .keyboard-grid {
   display: flex;
@@ -37,6 +36,24 @@
   letter-spacing: 1px;
 }
 
+.deselect-btn {
+  font-size: 0.85rem;
+  font-family: var(--font-mono, monospace);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--accent);
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.deselect-btn:hover {
+  background: var(--accent);
+  color: var(--bg-primary, #000);
+}
+
 /* =============================================================================
    KEYBOARD LAYOUT
    ============================================================================= */
@@ -54,33 +71,23 @@
 .keyboard-half {
   display: flex;
   flex-direction: column;
-  gap: 12px;
   align-items: center;
-}
-
-.hand-label {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 2px;
-  color: var(--text-secondary);
-  margin-bottom: 8px;
-  opacity: 0.6;
 }
 
 /* The staggered grid. 7 columns (6 finger cols + 1 inner thumb col),
    6 rows (4 matrix rows + 2 thumb rows). */
 .key-grid {
   display: grid;
-  grid-template-columns: repeat(7, 48px);
-  grid-template-rows: repeat(6, 48px);
+  grid-template-columns: repeat(7, 56px);
+  grid-template-rows: repeat(6, 56px);
   gap: 8px;
 }
 
 /* Wrapper that the grid positions; the button fills it. The vertical
    stagger (margin-top) is applied inline per key. */
 .key-cell {
-  width: 48px;
-  height: 48px;
+  width: 56px;
+  height: 56px;
 }
 
 .keyboard-divider {

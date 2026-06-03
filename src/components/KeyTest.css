@@ -109,6 +109,7 @@
   justify-content: center;
   text-align: center;
   padding: 2px;
+  position: relative;
   -webkit-user-select: none;
   user-select: none;
   box-shadow:
@@ -120,6 +121,19 @@
     box-shadow 0.06s ease,
     color 0.06s ease,
     transform 0.06s ease;
+}
+
+.test-key-sub {
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  font-size: 0.5rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  opacity: 0.7;
+  line-height: 1;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 .test-key.thumb {
