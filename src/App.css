@@ -51,13 +51,17 @@ body {
 }
 
 .app-header {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
   padding: calc(var(--spacing) * 2) calc(var(--spacing) * 3);
   border-bottom: 2px solid var(--border);
   background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
   animation: slideInDown 0.6s ease-out;
+}
+
+.header-title {
+  text-align: center;
 }
 
 .header-title h1 {
@@ -83,6 +87,7 @@ body {
 .header-status {
   display: flex;
   align-items: center;
+  justify-self: end;
   gap: calc(var(--spacing) * 2);
   padding: calc(var(--spacing)) calc(var(--spacing) * 2);
   border: 1px solid var(--border);
@@ -107,13 +112,73 @@ body {
   box-shadow: 0 0 10px var(--danger);
 }
 
-.app-container {
-  display: grid;
-  grid-template-columns: 280px 1fr 280px;
+.app-body {
+  display: flex;
+  flex: 1;
   gap: calc(var(--spacing) * 2);
   padding: calc(var(--spacing) * 2);
-  flex: 1;
   overflow: hidden;
+}
+
+.app-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--spacing) * 2);
+  overflow: hidden;
+}
+
+.debug-panel {
+  width: 280px;
+  flex-shrink: 0;
+}
+
+.debug-panel.verbose {
+  width: 336px;
+}
+
+.debug-panel.verbose .debug-console {
+  flex: 1;
+  min-height: 0;
+}
+
+.debug-panel.verbose .log-container {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+
+.header-layers {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-layers-label {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.header-layer-btns {
+  display: flex;
+  gap: 4px;
+}
+
+.header-layer-btn {
+  width: 36px;
+  padding: 5px 0;
+  text-align: center;
+  font-size: 0.85rem;
+}
+
+.header-layer-btn.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(0, 217, 255, 0.1);
+  box-shadow: 0 0 8px rgba(0, 217, 255, 0.25);
 }
 
 /* =============================================================================
@@ -150,6 +215,8 @@ body {
    ============================================================================= */
 
 .editor-container {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   border: 1px solid var(--border);
@@ -309,13 +376,8 @@ button:disabled {
    RESPONSIVE
    ============================================================================= */
 
-@media (max-width: 1400px) {
-  .app-container {
-    grid-template-columns: 1fr;
-  }
-
-  .left-panel,
-  .right-panel {
+@media (max-width: 1100px) {
+  .debug-panel {
     display: none;
   }
 }

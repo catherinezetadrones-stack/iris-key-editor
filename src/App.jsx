@@ -1,20 +1,14 @@
-// App.jsx - Iris-LM Editor Main Application
-//
-// Industrial/brutalist aesthetic with neon accents; the keyboard layout editor
-// is the visual centerpiece. The backend speaks the stock VIA protocol over raw
-// HID, so remapping is live and persisted to EEPROM by the firmware — no flash.
-
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/tauri';
+import { decodeQuantum } from './keyboardLayout';
 import './App.css';
 
 import KeyboardGrid from './components/KeyboardGrid';
-import LayerPanel from './components/LayerPanel';
-import DevicePanel from './components/DevicePanel';
 import MacroEditor from './components/MacroEditor';
 import SettingsPanel from './components/SettingsPanel';
 import DebugConsole from './components/DebugConsole';
 import KeyTest from './components/KeyTest';
+import KeyPicker from './components/KeyPicker';
 
 export default function App() {
   const [devices, setDevices] = useState([]);
@@ -24,13 +18,22 @@ export default function App() {
   const [selectedKey, setSelectedKey] = useState(null);
   const [debugLogs, setDebugLogs] = useState([]);
   const [isFlashing, setIsFlashing] = useState(false);
-  const [activeTab, setActiveTab] = useState('editor'); // 'editor' | 'macros' | 'settings' | 'test'
+  const [activeTab, setActiveTab] = useState('editor');
+  const [showDebugLog, setShowDebugLog] = useState(false);
+  const [verboseDebug, setVerboseDebug] = useState(false);
+  const [pickerRequest, setPickerRequest] = useState(null);
 
-  // Defined before the effects that use it to avoid a temporal-dead-zone error.
+  const verboseRef = useRef(false);
+  useEffect(() => { verboseRef.current = verboseDebug; }, [verboseDebug]);
+
   const addDebugLog = useCallback((message) => {
     const timestamp = new Date().toLocaleTimeString();
-    setDebugLogs((prev) => [...prev.slice(-99), `[${timestamp}] ${message}`]);
+    setDebugLogs((prev) => [...prev.slice(verboseRef.current ? -499 : -99), `[${timestamp}] ${message}`]);
   }, []);
+
+  const logVerbose = useCallback((msg) => {
+    if (verboseRef.current) addDebugLog(msg);
+  }, [addDebugLog]);
 
   const loadKeymap = useCallback(
     async (layer) => {
@@ -38,15 +41,14 @@ export default function App() {
         const result = await invoke('read_keymap', { layer });
         setKeymap(result);
         addDebugLog(`Loaded layer ${layer}`);
+        logVerbose(`  └─ ${result.length} rows × ${result[0]?.length ?? 0} cols`);
       } catch (err) {
         addDebugLog(`Keymap load error: ${err}`);
       }
     },
-    [addDebugLog]
+    [addDebugLog, logVerbose]
   );
 
-  // Poll for devices. The VIA backend has no event stream, so a light 2s poll
-  // handles plug/unplug. Re-selects and reloads when the device set changes.
   useEffect(() => {
     let cancelled = false;
 
@@ -55,6 +57,7 @@ export default function App() {
         const result = await invoke('detect_devices');
         if (cancelled) return;
         setDevices(result);
+        logVerbose(`Scan: ${result.length} device(s)${result.length ? ` — ${result.map((d) => d.name).join(', ')}` : ' (none)'}`);
 
         if (result.length === 0) {
           if (selectedDevice) {
@@ -64,11 +67,11 @@ export default function App() {
           return;
         }
 
-        // Auto-select the first device and load its keymap once.
         const stillPresent = selectedDevice && result.some((d) => d.port === selectedDevice.port);
         if (!stillPresent) {
           setSelectedDevice(result[0]);
           addDebugLog(`Found ${result.length} device(s): ${result[0].name}`);
+          logVerbose(`  └─ port: ${result[0].port ?? 'unknown'}`);
           await loadKeymap(currentLayer);
         }
       } catch (err) {
@@ -82,7 +85,7 @@ export default function App() {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [selectedDevice, currentLayer, loadKeymap, addDebugLog]);
+  }, [selectedDevice, currentLayer, loadKeymap, addDebugLog, logVerbose]);
 
   const handleKeyChange = async (row, col, newKeycode) => {
     if (!selectedDevice) {
@@ -94,22 +97,41 @@ export default function App() {
       setKeymap((prev) =>
         prev.map((r, i) => (i === row ? r.map((k, j) => (j === col ? newKeycode : k)) : r))
       );
-      addDebugLog(`Key updated [${row},${col}] -> 0x${newKeycode.toString(16)}`);
+      addDebugLog(`Key updated [${row},${col}] -> 0x${newKeycode.toString(16).padStart(4, '0')}`);
+      logVerbose(`  └─ decoded: ${decodeQuantum(newKeycode) ?? 'unknown'} | layer ${currentLayer}`);
     } catch (err) {
       addDebugLog(`Key write error: ${err}`);
     }
   };
 
   const handleLayerChange = async (newLayer) => {
+    logVerbose(`Layer: ${currentLayer} → ${newLayer}`);
     setCurrentLayer(newLayer);
+    setSelectedKey(null);
     await loadKeymap(newLayer);
   };
 
-  const handleBootloader = async () => {
-    if (!selectedDevice) {
-      addDebugLog('No device selected');
-      return;
+  const handleKeySelect = (key) => {
+    setSelectedKey(key);
+    if (key) logVerbose(`Key selected: [${key.row},${key.col}]`);
+    else logVerbose('Key deselected');
+  };
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    logVerbose(`Tab: ${tab}`);
+  };
+
+  const handlePickerRequest = (req) => {
+    setPickerRequest(req);
+    if (req) {
+      const name = decodeQuantum(req.code) ?? `0x${req.code.toString(16).padStart(4, '0')}`;
+      logVerbose(`Right-click → picker: ${name} (0x${req.code.toString(16).padStart(4, '0')})`);
     }
+  };
+
+  const handleBootloader = async () => {
+    if (!selectedDevice) { addDebugLog('No device selected'); return; }
     try {
       addDebugLog('Jumping to bootloader (for firmware update)...');
       await invoke('jump_bootloader');
@@ -119,8 +141,6 @@ export default function App() {
     }
   };
 
-  // Firmware UPDATE only — unrelated to remapping. flash_firmware resolves when
-  // dfu-util finishes, so reset the flashing flag in finally().
   const handleFlashFirmware = async (firmwarePath) => {
     setIsFlashing(true);
     try {
@@ -136,87 +156,90 @@ export default function App() {
   return (
     <div className="app">
       <header className="app-header">
+        <div className="header-layers">
+          <span className="header-layers-label">LAYER</span>
+          <div className="header-layer-btns">
+            {Array.from({ length: 4 }).map((_, idx) => (
+              <button
+                key={idx}
+                className={`header-layer-btn${currentLayer === idx ? ' active' : ''}`}
+                onClick={() => handleLayerChange(idx)}
+              >
+                {idx}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="header-title">
           <h1>IRIS-LM</h1>
           <span className="subtitle">Keyboard Configuration System</span>
         </div>
+
         <div className="header-status">
           {selectedDevice ? (
             <>
-              <div className="status-indicator connected"></div>
+              <div className="status-indicator connected" />
               <span>{selectedDevice.name}</span>
             </>
           ) : (
             <>
-              <div className="status-indicator disconnected"></div>
+              <div className="status-indicator disconnected" />
               <span>No Device</span>
             </>
           )}
         </div>
       </header>
 
-      <div className="app-container">
-        <aside className="panel left-panel">
-          <DevicePanel
-            devices={devices}
-            selectedDevice={selectedDevice}
-            onSelectDevice={setSelectedDevice}
-            onBootloader={handleBootloader}
-            onFlash={handleFlashFirmware}
-            isFlashing={isFlashing}
-          />
-          <LayerPanel currentLayer={currentLayer} maxLayers={4} onLayerChange={handleLayerChange} />
-        </aside>
+      <div className="app-body">
+        <div className="app-main">
+          <div className="editor-container">
+            <div className="tabs">
+              <button className={`tab${activeTab === 'editor'   ? ' active' : ''}`} onClick={() => handleTabChange('editor')}>Editor</button>
+              <button className={`tab${activeTab === 'macros'   ? ' active' : ''}`} onClick={() => handleTabChange('macros')}>Macros</button>
+              <button className={`tab${activeTab === 'settings' ? ' active' : ''}`} onClick={() => handleTabChange('settings')}>Settings</button>
+              <button className={`tab${activeTab === 'test'     ? ' active' : ''}`} onClick={() => handleTabChange('test')}>Key Test</button>
+            </div>
 
-        <main className="editor-container">
-          <div className="tabs">
-            <button
-              className={`tab ${activeTab === 'editor' ? 'active' : ''}`}
-              onClick={() => setActiveTab('editor')}
-            >
-              Editor
-            </button>
-            <button
-              className={`tab ${activeTab === 'macros' ? 'active' : ''}`}
-              onClick={() => setActiveTab('macros')}
-            >
-              Macros
-            </button>
-            <button
-              className={`tab ${activeTab === 'settings' ? 'active' : ''}`}
-              onClick={() => setActiveTab('settings')}
-            >
-              Settings
-            </button>
-            <button
-              className={`tab ${activeTab === 'test' ? 'active' : ''}`}
-              onClick={() => setActiveTab('test')}
-            >
-              Key Test
-            </button>
+            <div className="tab-content">
+              {activeTab === 'editor' && (
+                <KeyboardGrid
+                  keymap={keymap}
+                  currentLayer={currentLayer}
+                  selectedKey={selectedKey}
+                  onKeySelect={handleKeySelect}
+                  onKeyChange={handleKeyChange}
+                  onKeyRightClick={handlePickerRequest}
+                />
+              )}
+              {activeTab === 'macros'   && <MacroEditor device={selectedDevice} />}
+              {activeTab === 'settings' && (
+                <SettingsPanel
+                  showDebugLog={showDebugLog}
+                  onToggleDebugLog={setShowDebugLog}
+                  verboseDebug={verboseDebug}
+                  onToggleVerboseDebug={setVerboseDebug}
+                />
+              )}
+              {activeTab === 'test' && (
+                <KeyTest selectedDevice={selectedDevice} numLayers={4} />
+              )}
+            </div>
           </div>
 
-          <div className="tab-content">
-            {activeTab === 'editor' && (
-              <KeyboardGrid
-                keymap={keymap}
-                currentLayer={currentLayer}
-                selectedKey={selectedKey}
-                onKeySelect={setSelectedKey}
-                onKeyChange={handleKeyChange}
-              />
-            )}
-            {activeTab === 'macros' && <MacroEditor device={selectedDevice} />}
-            {activeTab === 'settings' && <SettingsPanel />}
-            {activeTab === 'test' && (
-              <KeyTest selectedDevice={selectedDevice} numLayers={4} />
-            )}
-          </div>
-        </main>
+          {activeTab === 'editor' && (
+            <KeyPicker
+              onSelect={(keycode) => selectedKey && handleKeyChange(selectedKey.row, selectedKey.col, keycode)}
+              focusRequest={pickerRequest}
+            />
+          )}
+        </div>
 
-        <aside className="panel right-panel">
-          <DebugConsole logs={debugLogs} />
-        </aside>
+        {showDebugLog && (
+          <aside className={`panel debug-panel${verboseDebug ? ' verbose' : ''}`}>
+            <DebugConsole logs={debugLogs} onClear={() => setDebugLogs([])} />
+          </aside>
+        )}
       </div>
     </div>
   );
