@@ -1,0 +1,300 @@
+/* KeyTest.css — live key-tester panel */
+
+.key-test {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 24px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.key-test-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 2px solid var(--accent);
+  padding-bottom: 16px;
+  flex-shrink: 0;
+}
+
+/* Mode toggle */
+.mode-toggle {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.mode-btn {
+  padding: 5px 14px;
+  font-size: 0.78rem;
+  border: none;
+  border-radius: 0;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  letter-spacing: 0.5px;
+}
+
+.mode-btn + .mode-btn {
+  border-left: 1px solid var(--border);
+}
+
+.mode-btn.active {
+  background: var(--accent);
+  color: var(--bg-primary);
+  font-weight: 700;
+}
+
+.mode-btn:hover:not(.active) {
+  color: var(--text-primary);
+  box-shadow: none;
+}
+
+.key-test-layer-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.layer-badge {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 4px 14px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.layer-badge-active {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-alt) 100%);
+  border-color: var(--accent);
+  color: var(--bg-primary);
+  box-shadow: 0 0 12px rgba(0, 217, 255, 0.5);
+}
+
+.key-test-hint {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* =============================================================================
+   KEY APPEARANCE
+   ============================================================================= */
+
+.test-key {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #1a1f3a 0%, #0f1428 100%);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2px;
+  -webkit-user-select: none;
+  user-select: none;
+  box-shadow:
+    0 4px 8px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition:
+    background 0.06s ease,
+    border-color 0.06s ease,
+    box-shadow 0.06s ease,
+    color 0.06s ease,
+    transform 0.06s ease;
+}
+
+.test-key.thumb {
+  background: linear-gradient(135deg, #1a2540 0%, #0f1a35 100%);
+}
+
+.test-key.pressed {
+  background: linear-gradient(135deg, rgba(0, 217, 255, 0.25) 0%, rgba(0, 217, 255, 0.12) 100%);
+  border-color: var(--accent);
+  color: var(--accent);
+  transform: translateY(2px);
+  box-shadow:
+    0 0 18px rgba(0, 217, 255, 0.55),
+    0 0 6px  rgba(0, 217, 255, 0.8),
+    0 2px 4px rgba(0, 0, 0, 0.4),
+    inset 0 0 10px rgba(0, 217, 255, 0.15);
+}
+
+.test-key.thumb.pressed {
+  background: linear-gradient(135deg, rgba(0, 217, 255, 0.3) 0%, rgba(0, 217, 255, 0.15) 100%);
+}
+
+/* =============================================================================
+   RAW MATRIX VIEW
+   ============================================================================= */
+
+.raw-matrix-view {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.raw-hint {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.raw-hint code {
+  color: var(--accent);
+  background: rgba(0, 217, 255, 0.08);
+  padding: 1px 5px;
+  border-radius: 2px;
+  font-family: var(--font-mono);
+}
+
+/* Grid: col-label row then ROWS data rows */
+.raw-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-self: flex-start;
+}
+
+.raw-col-labels,
+.raw-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.raw-corner {
+  width: 28px;
+  flex-shrink: 0;
+}
+
+.raw-axis-label {
+  width: 28px;
+  flex-shrink: 0;
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  text-align: center;
+  font-family: var(--font-mono);
+  letter-spacing: 0.3px;
+}
+
+.raw-cell {
+  width: 46px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  transition: background 0.06s ease, border-color 0.06s ease, color 0.06s ease, box-shadow 0.06s ease;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.raw-cell.seen {
+  border-color: rgba(0, 217, 255, 0.3);
+  color: rgba(0, 217, 255, 0.5);
+}
+
+.raw-cell.pressed {
+  background: rgba(0, 217, 255, 0.2);
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 10px rgba(0, 217, 255, 0.5);
+  font-weight: 700;
+}
+
+/* Discovery log */
+.discovery-log {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 14px;
+}
+
+.discovery-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.discovery-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.discovery-actions button {
+  padding: 3px 10px;
+  font-size: 0.72rem;
+}
+
+.discovery-entries {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 28px;
+}
+
+.discovery-entry {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--accent);
+  background: rgba(0, 217, 255, 0.08);
+  border: 1px solid rgba(0, 217, 255, 0.2);
+  border-radius: 2px;
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+
+.discovery-empty {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* =============================================================================
+   STATUS STATES
+   ============================================================================= */
+
+.key-test-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.key-test-error-state {
+  color: var(--danger);
+}

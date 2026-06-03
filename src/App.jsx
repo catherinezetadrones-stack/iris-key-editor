@@ -14,6 +14,7 @@ import DevicePanel from './components/DevicePanel';
 import MacroEditor from './components/MacroEditor';
 import SettingsPanel from './components/SettingsPanel';
 import DebugConsole from './components/DebugConsole';
+import KeyTest from './components/KeyTest';
 
 export default function App() {
   const [devices, setDevices] = useState([]);
@@ -23,7 +24,7 @@ export default function App() {
   const [selectedKey, setSelectedKey] = useState(null);
   const [debugLogs, setDebugLogs] = useState([]);
   const [isFlashing, setIsFlashing] = useState(false);
-  const [activeTab, setActiveTab] = useState('editor'); // 'editor' | 'macros' | 'settings'
+  const [activeTab, setActiveTab] = useState('editor'); // 'editor' | 'macros' | 'settings' | 'test'
 
   // Defined before the effects that use it to avoid a temporal-dead-zone error.
   const addDebugLog = useCallback((message) => {
@@ -187,6 +188,12 @@ export default function App() {
             >
               Settings
             </button>
+            <button
+              className={`tab ${activeTab === 'test' ? 'active' : ''}`}
+              onClick={() => setActiveTab('test')}
+            >
+              Key Test
+            </button>
           </div>
 
           <div className="tab-content">
@@ -201,6 +208,9 @@ export default function App() {
             )}
             {activeTab === 'macros' && <MacroEditor device={selectedDevice} />}
             {activeTab === 'settings' && <SettingsPanel />}
+            {activeTab === 'test' && (
+              <KeyTest selectedDevice={selectedDevice} numLayers={4} />
+            )}
           </div>
         </main>
 

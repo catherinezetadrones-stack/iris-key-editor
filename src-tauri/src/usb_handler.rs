@@ -14,9 +14,9 @@
 
 use hidapi::{HidApi, HidDevice};
 
-use crate::via_protocol::{cmd, key_offset, COMMAND_TIMEOUT_MS, DFU_PID, DFU_VID, KEEBIO_VID,
-                          LAYER_BYTES, MATRIX_COLS, MATRIX_ROWS, RAW_USAGE, RAW_USAGE_PAGE,
-                          REPORT_LEN};
+use crate::via_protocol::{cmd, keyboard_value, key_offset, COMMAND_TIMEOUT_MS, DFU_PID, DFU_VID,
+                          KEEBIO_VID, LAYER_BYTES, MATRIX_COLS, MATRIX_ROWS, RAW_USAGE,
+                          RAW_USAGE_PAGE, REPORT_LEN};
 use crate::DeviceInfo;
 
 /// An opened VIA keyboard ready for commands.
@@ -135,6 +135,32 @@ impl ViaKeyboard {
             }
         }
         Ok(grid)
+    }
+
+    /// Read the live switch matrix state via GET_KEYBOARD_VALUE(id_switch_matrix_state).
+    /// Returns a rows×cols grid; true means the physical key is currently pressed.
+    /// Bit packing follows QMK via.c: sequential (row*cols+col), LSB-first within each byte.
+    ///
+    /// We scan SCAN_ROWS instead of MATRIX_ROWS because split firmware variants
+    /// can place the right-half keys at row indices above the declared MATRIX_ROWS
+    /// (e.g. rows 10-15 in a nominal "10-row" matrix).  The extra rows are always
+    /// zero if the firmware didn't write them, so there are no false positives.
+    pub fn get_matrix_state(&self) -> Result<Vec<Vec<bool>>, String> {
+        let r    = self.command(&[cmd::GET_KEYBOARD_VALUE, keyboard_value::SWITCH_MATRIX_STATE])?;
+        let cols = MATRIX_COLS as usize;
+        const SCAN_ROWS: usize = 16; // generous upper bound; unused rows read as 0
+        let mut state = vec![vec![false; cols]; SCAN_ROWS];
+        for row in 0..SCAN_ROWS {
+            for col in 0..cols {
+                let bit_idx  = row * cols + col;
+                let byte_idx = 2 + bit_idx / 8; // response data starts at offset 2
+                let bit_pos  = bit_idx % 8;
+                if byte_idx < REPORT_LEN {
+                    state[row][col] = (r[byte_idx] >> bit_pos) & 1 == 1;
+                }
+            }
+        }
+        Ok(state)
     }
 
     /// Ask the keyboard to reboot into its bootloader (for firmware flashing).

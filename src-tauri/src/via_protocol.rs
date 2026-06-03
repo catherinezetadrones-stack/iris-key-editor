@@ -44,6 +44,11 @@ pub mod cmd {
     pub const DYNAMIC_KEYMAP_SET_BUFFER: u8 = 0x13;
 }
 
+// Sub-command IDs for GET_KEYBOARD_VALUE / SET_KEYBOARD_VALUE (via.h keyboard_value_id).
+pub mod keyboard_value {
+    pub const SWITCH_MATRIX_STATE: u8 = 0x03;
+}
+
 // Iris-LM matrix shape ------------------------------------------------------
 //
 // The Iris family (incl. the LM) is a split 4x6 + 4 thumb keys per half, wired

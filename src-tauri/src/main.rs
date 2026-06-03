@@ -66,6 +66,13 @@ fn flash_firmware(firmware_path: String) -> Result<(), String> {
     dfu_flasher::flash_dfu(&firmware_path)
 }
 
+/// Returns the live switch matrix state for the Key Test tab.
+/// Rows × cols grid; true = key is currently pressed.
+#[tauri::command]
+fn get_matrix_state() -> Result<Vec<Vec<bool>>, String> {
+    ViaKeyboard::open()?.get_matrix_state()
+}
+
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
@@ -76,6 +83,7 @@ fn main() {
             get_layer_count,
             jump_bootloader,
             flash_firmware,
+            get_matrix_state,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Iris-LM Editor");
