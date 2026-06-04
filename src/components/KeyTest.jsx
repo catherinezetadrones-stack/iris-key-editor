@@ -13,7 +13,7 @@ const MO_BASE = 0x5220; // MO(n) = 0x5220 | n
 const MO_MASK = 0xFFF0;
 const LT_BASE = 0x4000; // LT(n,key) = 0x4000 | (n<<8) | key
 const LT_HMASK = 0xF000;
-const ROWS = 16; // matches Rust SCAN_ROWS; right-half keys sit at rows 8-14
+const ROWS = 10; // QMK matrix: rows 0-4 = left half, rows 5-9 = right half
 const COLS = 6;
 
 function labelFor(key, layerKeymap) {

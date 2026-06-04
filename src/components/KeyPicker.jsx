@@ -200,8 +200,9 @@ const KEY_CATEGORIES = [
   {
     name: 'Special',
     keys: [
-      { name: 'TRNS', code: 0x0001 },
-      { name: 'NO',   code: 0x0000 },
+      { name: 'TRNS',    code: 0x0001 },
+      { name: 'NO',      code: 0x0000 },
+      { name: 'QK_BOOT', code: 0x7c00 },
     ],
   },
 ];

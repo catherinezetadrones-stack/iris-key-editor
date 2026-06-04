@@ -32,35 +32,38 @@ const RIGHT_THUMBS = ['END',  'LT3·SP', 'MO(2)',   ','   ];
 // ── Physical [row][col] → [matrixRow, matrixCol] ──────────────────────────────
 // Confirmed by pressing each key and reading the Raw Matrix output.
 
+// Matrix coordinates use the QMK logical matrix (rows 0-9, cols 0-5) as reported
+// by the VIAL firmware via GET_KEYBOARD_VALUE(SWITCH_MATRIX_STATE).
+// Left half = rows 0-4, right half = rows 5-9. Source: keyboard.json LAYOUT.
+
 const LEFT_MATRIX = [
   // ESC   1      2      3      4      5
-  [[1,2],[1,3],[1,4],[1,5],[2,0],[2,1]],
+  [[0,0],[0,1],[0,2],[0,3],[0,4],[0,5]],
   // TAB   Q      W      E      R      T
-  [[2,4],[2,5],[3,0],[3,1],[3,2],[3,3]],
+  [[1,0],[1,1],[1,2],[1,3],[1,4],[1,5]],
   // LSFT  A      S      D      F      G
-  [[4,0],[4,1],[4,2],[4,3],[4,4],[4,5]],
+  [[2,0],[2,1],[2,2],[2,3],[2,4],[2,5]],
   // LCTL  Z      X      C      V      B
-  [[5,2],[5,3],[5,4],[5,5],[6,0],[6,1]],
+  [[3,0],[3,1],[3,2],[3,3],[3,4],[3,5]],
 ];
 
 const RIGHT_MATRIX = [
   // 6      7      8      9      0      BSPC
+  [[5,5],[5,4],[5,3],[5,2],[5,1],[5,0]],
+  // Y      U      I      O      ;      DEL
+  [[6,5],[6,4],[6,3],[6,2],[6,1],[6,0]],
+  // H      J      K      L      P      CAPS
+  [[7,5],[7,4],[7,3],[7,2],[7,1],[7,0]],
+  // N      M      .      '      /      RALT
   [[8,5],[8,4],[8,3],[8,2],[8,1],[8,0]],
-  // Y       U       I      O      ;      DEL
-  [[10,1],[10,0],[9,5],[9,4],[9,3],[9,2]],
-  // H       J       K       L       P       CAPS
-  [[11,3],[11,2],[11,1],[11,0],[10,5],[10,4]],
-  // N       M       .       '       /       RALT
-  [[12,5],[12,4],[12,3],[12,2],[12,1],[12,0]],
 ];
 
 // Thumb clusters — visual slot order (0=inner/top … 3=outer/bottom) → [matrixRow, matrixCol]
-// Left: slot 0 (beside G) = HOME (rightmost physical), slot 3 (below V) = LGUI (leftmost)
-const LEFT_THUMB_MATRIX  = [[7,3],[7,2],[7,1],[7,0]];
+const LEFT_THUMB_MATRIX  = [[4,5],[4,4],[4,3],[4,2]];
 //                           HOME  SFT·ENT MO(1) LGUI
 
-const RIGHT_THUMB_MATRIX = [[14,1],[14,0],[13,5],[13,4]];
-//                           END   LT3·SP MO(2)   ,
+const RIGHT_THUMB_MATRIX = [[9,5],[9,4],[9,3],[9,2]];
+//                           END   LT3·SP  MO(2)  ,
 
 // ── CSS grid positions for thumb keys ────────────────────────────────────────
 // col/row here are CSS grid-column / grid-row values (not matrix coords).
@@ -180,6 +183,8 @@ export const KEYCODE_MAP = (() => {
     0x00b4: 'WSCH', 0x00b5: 'WHOM', 0x00b6: 'WBAK',
     0x00b7: 'WFWD', 0x00b8: 'WSTP', 0x00b9: 'WREF', 0x00ba: 'WFAV',
     0x00bb: 'BRIU', 0x00bc: 'BRID',
+    // QMK special
+    0x7c00: 'QK_BOOT',
     // Common shifted symbols (S(kc) = 0x0200 | kc)
     0x0220: '!', 0x0221: '@', 0x0222: '#', 0x0223: '$', 0x0224: '%',
     0x0225: '^', 0x0226: '(', 0x0227: ')', 0x0228: '{', 0x022d: '_',
