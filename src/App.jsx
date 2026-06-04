@@ -28,9 +28,13 @@ export default function App() {
   const [pickerRequest, setPickerRequest] = useState(null);
   const [copiedLayer, setCopiedLayer] = useState(null); // cached keymap for paste
   const [showClearModal, setShowClearModal] = useState(false);
+  const [showScanLog, setShowScanLog] = useState(false);
 
   const verboseRef = useRef(false);
   useEffect(() => { verboseRef.current = verboseDebug; }, [verboseDebug]);
+
+  const scanLogRef = useRef(false);
+  useEffect(() => { scanLogRef.current = showScanLog; }, [showScanLog]);
 
   const addDebugLog = useCallback((message) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -63,7 +67,7 @@ export default function App() {
         const result = await invoke('detect_devices');
         if (cancelled) return;
         setDevices(result);
-        logVerbose(`Scan: ${result.length} device(s)${result.length ? ` — ${result.map((d) => d.name).join(', ')}` : ' (none)'}`);
+        if (scanLogRef.current) addDebugLog(`Scan: ${result.length} device(s)${result.length ? ` — ${result.map((d) => d.name).join(', ')}` : ' (none)'}`);
 
         if (result.length === 0) {
           if (selectedDevice) {
@@ -220,6 +224,8 @@ export default function App() {
     }
   };
 
+  const [macroReloadKey, setMacroReloadKey] = useState(0);
+
   const handleImportKeymap = async () => {
     if (!selectedDevice) return;
     try {
@@ -230,15 +236,22 @@ export default function App() {
       for (let l = 0; l < profile.layers.length; l++) {
         await invoke('write_layer', { layer: l, keymap: profile.layers[l] });
       }
-      if (profile.macros?.length) {
+      const macroSlots = Array.isArray(profile.macros) ? profile.macros.length : 0;
+      addDebugLog(`Profile macros: ${macroSlots} slots found`);
+      if (macroSlots > 0) {
         try {
           const info  = await invoke('get_macro_info');
+          addDebugLog(`Keyboard macro buffer: ${info.count} slots, ${info.buffer_size} bytes`);
           const bytes = serializeBuffer(profile.macros, info.buffer_size);
+          addDebugLog(`Writing ${bytes.filter(b => b !== 0).length} non-zero macro bytes…`);
           await invoke('write_macros', { data: bytes });
+          setMacroReloadKey(k => k + 1); // signal MacroEditor to reload
           addDebugLog('Macros restored');
         } catch (err) {
           addDebugLog(`Macro restore failed: ${err}`);
         }
+      } else {
+        addDebugLog('No macros in profile — skipped');
       }
       await loadKeymap(currentLayer);
       addDebugLog('Profile imported');
@@ -347,7 +360,7 @@ export default function App() {
                   onKeyRightClick={handlePickerRequest}
                 />
               )}
-              {activeTab === 'macros'    && <MacroEditor device={selectedDevice} />}
+              {activeTab === 'macros'    && <MacroEditor device={selectedDevice} addDebugLog={addDebugLog} reloadKey={macroReloadKey} />}
               {activeTab === 'tapdance' && <TapDanceEditor device={selectedDevice} />}
               {activeTab === 'combos'   && <CombosEditor  device={selectedDevice} />}
               {activeTab === 'firmware' && (
@@ -362,10 +375,12 @@ export default function App() {
                   onToggleDebugLog={setShowDebugLog}
                   verboseDebug={verboseDebug}
                   onToggleVerboseDebug={setVerboseDebug}
+                  showScanLog={showScanLog}
+                  onToggleShowScanLog={setShowScanLog}
                 />
               )}
               {activeTab === 'test' && (
-                <KeyTest selectedDevice={selectedDevice} numLayers={4} />
+                <KeyTest selectedDevice={selectedDevice} numLayers={4} addDebugLog={addDebugLog} logPolling={verboseDebug} />
               )}
             </div>
           </div>

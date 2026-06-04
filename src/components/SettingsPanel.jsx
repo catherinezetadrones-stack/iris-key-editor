@@ -5,6 +5,8 @@ export default function SettingsPanel({
   onToggleDebugLog,
   verboseDebug = false,
   onToggleVerboseDebug,
+  showScanLog = false,
+  onToggleShowScanLog,
 }) {
   return (
     <div className="settings-panel">
@@ -32,6 +34,15 @@ export default function SettingsPanel({
             onChange={(e) => onToggleVerboseDebug?.(e.target.checked)}
           />{' '}
           Verbose logging
+        </label>
+        <label className={`settings-sub-option${showDebugLog ? '' : ' disabled'}`}>
+          <input
+            type="checkbox"
+            checked={showScanLog}
+            disabled={!showDebugLog}
+            onChange={(e) => onToggleShowScanLog?.(e.target.checked)}
+          />{' '}
+          Device scan messages
         </label>
       </div>
     </div>
