@@ -148,13 +148,16 @@ impl ViaKeyboard {
     pub fn get_matrix_state(&self) -> Result<Vec<Vec<bool>>, String> {
         let r    = self.command(&[cmd::GET_KEYBOARD_VALUE, keyboard_value::SWITCH_MATRIX_STATE])?;
         let cols = MATRIX_COLS as usize;
-        const SCAN_ROWS: usize = MATRIX_ROWS as usize; // QMK matrix: 10 rows (0-4 left, 5-9 right)
+        const SCAN_ROWS: usize = MATRIX_ROWS as usize;
         let mut state = vec![vec![false; cols]; SCAN_ROWS];
+        // QMK via.c packs one full byte per row (ceil(MATRIX_COLS/8) bytes, LSB = col 0).
+        // For MATRIX_COLS <= 8: r[2+row] = row's column bitmask, bit c = col c.
+        // Response layout: r[0]=cmd echo, r[1]=sub-cmd echo, r[2..]=row bytes.
+        let bytes_per_row = (cols + 7) / 8;
         for row in 0..SCAN_ROWS {
             for col in 0..cols {
-                let bit_idx  = row * cols + col;
-                let byte_idx = 2 + bit_idx / 8; // response data starts at offset 2
-                let bit_pos  = bit_idx % 8;
+                let byte_idx = 2 + row * bytes_per_row + col / 8;
+                let bit_pos  = col % 8;
                 if byte_idx < REPORT_LEN {
                     state[row][col] = (r[byte_idx] >> bit_pos) & 1 == 1;
                 }

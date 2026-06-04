@@ -8,6 +8,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/tauri';
 import { HALVES, decodeQuantum, getSecondary } from '../keyboardLayout';
 import './KeyTest.css';
+import './TapDanceEditor.css'; // unlock overlay styles
 
 const MO_BASE = 0x5220; // MO(n) = 0x5220 | n
 const MO_MASK = 0xFFF0;
@@ -241,32 +242,144 @@ function VisualView({ matrixState, allLayers }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function KeyTest({ selectedDevice, numLayers = 4 }) {
+function UnlockOverlay({ unlockKeys, onUnlock, onClose }) {
+  const [stage, setStage]         = useState('idle');
+  const [countdown, setCountdown] = useState(50);
+  const pollRef                   = useRef(null);
+  const stopPoll = () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
+  useEffect(() => () => stopPoll(), []);
+
+  const startUnlock = async () => {
+    try {
+      await invoke('vial_unlock_start');
+      setStage('waiting');
+      setCountdown(50);
+      pollRef.current = setInterval(async () => {
+        try {
+          const r = await invoke('vial_unlock_poll');
+          setCountdown(r.countdown);
+          if (r.unlocked) { stopPoll(); onUnlock(); }
+          else if (!r.in_progress && r.countdown === 0) { stopPoll(); setStage('error'); }
+        } catch { stopPoll(); setStage('error'); }
+      }, 200);
+    } catch { setStage('error'); }
+  };
+
+  return (
+    <div className="unlock-overlay">
+      <div className="unlock-box">
+        <div className="unlock-icon">🔒</div>
+        <h3 className="unlock-title">Keyboard Locked</h3>
+        {stage === 'idle' && (
+          <>
+            <p className="unlock-body">VIAL requires unlock before the matrix state can be read (keylogger protection).</p>
+            {unlockKeys.length > 0 && (
+              <p className="unlock-keys">Hold: {unlockKeys.map(([r, c]) => `[row ${r}, col ${c}]`).join(' + ')}</p>
+            )}
+            <div className="unlock-actions">
+              <button className="primary" onClick={startUnlock}>Unlock</button>
+              <button onClick={onClose}>Cancel</button>
+            </div>
+          </>
+        )}
+        {stage === 'waiting' && (
+          <>
+            <p className="unlock-body">Hold the unlock key combination…</p>
+            <div className="unlock-progress">
+              <div className="unlock-bar" style={{ width: `${((50 - countdown) / 50) * 100}%` }} />
+            </div>
+            <p className="unlock-countdown">{countdown > 0 ? `${countdown} steps remaining` : 'Completing…'}</p>
+          </>
+        )}
+        {stage === 'error' && (
+          <>
+            <p className="unlock-body unlock-error">Unlock failed. Hold all required keys continuously.</p>
+            <div className="unlock-actions">
+              <button className="primary" onClick={() => setStage('idle')}>Try Again</button>
+              <button onClick={onClose}>Cancel</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function KeyTest({ selectedDevice, numLayers = 4, addDebugLog, logPolling = false }) {
+  const log = addDebugLog ?? (() => {});
+
   const [allLayers, setAllLayers] = useState([]);
   const [phase, setPhase] = useState('idle');
   const [errorMsg, setErrorMsg] = useState('');
-  const [mode, setMode] = useState('raw'); // start in raw so user can map first
+  const [mode, setMode] = useState('visual');
+  const [vialStatus, setVialStatus] = useState(null); // null = not yet checked
+  const [showUnlock, setShowUnlock] = useState(false);
 
   const { matrixState, pollError } = useMatrixPolling(phase === 'ready');
 
   // Surface poll errors.
   useEffect(() => {
     if (pollError) {
+      const msg = `Key Test matrix poll failed: ${pollError}`;
       setErrorMsg(`Matrix poll failed: ${pollError}`);
       setPhase('error');
+      log(msg);
     }
   }, [pollError]);
 
-  // Reload layers whenever the device changes.
+  // Log keypresses (rising edge only — not-pressed → pressed).
+  // Individual key logs are gated by logPolling; the "first press ever" fires once regardless.
+  const prevMatrixRef  = useRef(null);
+  const everPressedRef = useRef(false);
+  const logPollingRef  = useRef(logPolling);
+  useEffect(() => { logPollingRef.current = logPolling; }, [logPolling]);
+
   useEffect(() => {
-    if (!selectedDevice) { setPhase('idle'); setAllLayers([]); return; }
+    if (!matrixState) return;
+    const prev = prevMatrixRef.current;
+    if (prev) {
+      for (let r = 0; r < matrixState.length; r++) {
+        for (let c = 0; c < (matrixState[r]?.length ?? 0); c++) {
+          if (matrixState[r][c] && !prev[r]?.[c]) {
+            if (!everPressedRef.current) {
+              everPressedRef.current = true;
+              log(`Key Test: matrix data live — first keypress detected [R${r}C${c}]`);
+            }
+            if (logPollingRef.current) {
+              const via  = HW_TO_VIA.get(`${r},${c}`);
+              const name = via
+                ? ([...HALVES.left, ...HALVES.right].find(k => k.viaRow === via.viaRow && k.viaCol === via.viaCol)?.label ?? '?')
+                : '?';
+              log(`Key Test: pressed ${name} [R${r}C${c}]`);
+            }
+          }
+        }
+      }
+    }
+    prevMatrixRef.current = matrixState;
+  }, [matrixState]);
+
+  // Reload layers + check VIAL lock status whenever the device changes.
+  useEffect(() => {
+    if (!selectedDevice) { setPhase('idle'); setAllLayers([]); setVialStatus(null); return; }
 
     setPhase('loading');
     setAllLayers([]);
+    log('Key Test: loading layers…');
 
     let cancelled = false;
     (async () => {
       try {
+        // Check VIAL lock status — matrix state requires unlock when VIAL is running.
+        const vs = await invoke('detect_vial');
+        if (cancelled) return;
+        setVialStatus(vs);
+        if (vs.supported && !vs.unlocked) {
+          setPhase('idle'); // stop here — show unlock prompt
+          log('Key Test: VIAL keyboard locked — unlock required for matrix state');
+          return;
+        }
+
         const layers = [];
         for (let i = 0; i < numLayers; i++) {
           const layer = await invoke('read_keymap', { layer: i });
@@ -275,13 +388,41 @@ export default function KeyTest({ selectedDevice, numLayers = 4 }) {
         }
         setAllLayers(layers);
         setPhase('ready');
+        log(`Key Test: loaded ${numLayers} layers — matrix polling active`);
       } catch (err) {
-        if (!cancelled) { setErrorMsg(`Layer load failed: ${err}`); setPhase('error'); }
+        if (!cancelled) {
+          const msg = `Key Test layer load failed: ${err}`;
+          setErrorMsg(`Layer load failed: ${err}`);
+          setPhase('error');
+          log(msg);
+        }
       }
     })();
 
     return () => { cancelled = true; };
   }, [selectedDevice, numLayers]);
+
+  // VIAL locked — show unlock prompt
+  if (vialStatus?.supported && !vialStatus.unlocked && !showUnlock) return (
+    <div className="key-test" style={{ position: 'relative' }}>
+      <div className="key-test-placeholder" style={{ flexDirection: 'column', gap: 12 }}>
+        <span>VIAL keyboard is locked — unlock to enable Key Test</span>
+        <button className="primary" onClick={() => setShowUnlock(true)}>Unlock Keyboard</button>
+      </div>
+    </div>
+  );
+  if (showUnlock && vialStatus?.supported && !vialStatus.unlocked) return (
+    <div className="key-test" style={{ position: 'relative' }}>
+      <UnlockOverlay
+        unlockKeys={vialStatus.unlock_keys}
+        onUnlock={() => {
+          setVialStatus(v => ({ ...v, unlocked: true }));
+          setShowUnlock(false);
+        }}
+        onClose={() => setShowUnlock(false)}
+      />
+    </div>
+  );
 
   if (phase === 'idle') return (
     <div className="key-test-placeholder">Connect your keyboard to use Key Test</div>
