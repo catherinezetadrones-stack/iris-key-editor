@@ -13,7 +13,7 @@
   "tauri": {
     "allowlist": {
       "all": false,
-      "dialog": { "open": true }
+      "dialog": { "open": true, "save": true }
     },
     "bundle": {
       "active": true,
@@ -63,7 +63,8 @@
         "minWidth": 1100,
         "resizable": true,
         "maximized": true,
-        "title": "Iris-LM Editor"
+        "title": "Iris-LM Editor",
+        "backgroundColor": "#0a0e27"
       }
     ]
   }
