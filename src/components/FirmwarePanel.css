@@ -1,0 +1,425 @@
+/* FirmwarePanel.css */
+
+.fw-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 680px;
+  padding-bottom: 24px;
+}
+
+/* ── Section ─────────────────────────────────────────────────────────────── */
+
+.fw-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fw-section-title {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--accent);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+  margin-bottom: 4px;
+}
+
+/* ── Status rows ─────────────────────────────────────────────────────────── */
+
+.fw-status-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.fw-status-label {
+  width: 100px;
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.fw-status-value {
+  font-size: 0.85rem;
+}
+
+.fw-upgrade-hint {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  padding: 8px 12px;
+  border-left: 3px solid var(--accent);
+  background: rgba(0, 217, 255, 0.04);
+  border-radius: 0 2px 2px 0;
+  line-height: 1.5;
+}
+
+.fw-upgrade-hint.success {
+  border-left-color: var(--success);
+  background: rgba(46, 213, 115, 0.04);
+  color: var(--success);
+}
+
+/* ── Badge ───────────────────────────────────────────────────────────────── */
+
+.fw-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.fw-badge-success {
+  background: rgba(46, 213, 115, 0.12);
+  color: var(--success);
+  border: 1px solid var(--success);
+}
+
+.fw-badge-warn {
+  background: rgba(255, 169, 64, 0.12);
+  color: #ffa940;
+  border: 1px solid #ffa940;
+}
+
+.fw-badge-muted {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+/* ── Flash steps ─────────────────────────────────────────────────────────── */
+
+.fw-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fw-step {
+  display: flex;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  background: var(--bg-secondary);
+  position: relative;
+}
+
+.fw-step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 28px;
+  width: 2px;
+  height: 2px;
+  background: var(--border);
+}
+
+.fw-step-num {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  font-weight: 600;
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
+.fw-step-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fw-step-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.5px;
+}
+
+.fw-step-desc {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.fw-step-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.fw-step-hint {
+  font-size: 0.75rem;
+  color: #ffa940;
+  line-height: 1.5;
+  margin-top: 4px;
+}
+
+.fw-file-name {
+  font-size: 0.75rem;
+  color: var(--accent-alt);
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Flash result ────────────────────────────────────────────────────────── */
+
+.fw-flash-result {
+  margin-top: 4px;
+  font-size: 0.78rem;
+  padding: 6px 10px;
+  border-radius: 2px;
+  border-left: 3px solid;
+}
+
+.fw-flash-result.ok {
+  border-color: var(--success);
+  color: var(--success);
+  background: rgba(46, 213, 115, 0.06);
+}
+
+.fw-flash-result.err {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: rgba(255, 71, 87, 0.06);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+/* ── Log ─────────────────────────────────────────────────────────────────── */
+
+.fw-log {
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.fw-log-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 10px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.fw-log-clear {
+  font-size: 0.68rem;
+  padding: 1px 6px;
+  letter-spacing: 0;
+}
+
+.fw-log-body {
+  padding: 8px 10px;
+  background: var(--bg-primary);
+  max-height: 140px;
+  overflow-y: auto;
+  font-size: 0.75rem;
+}
+
+.fw-log-line {
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.fw-log-line:last-child {
+  color: var(--text-primary);
+}
+
+/* ── Collapsible guide ───────────────────────────────────────────────────── */
+
+.fw-collapsible {
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.fw-collapsible-btn {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  background: var(--bg-secondary);
+  font-size: 0.8rem;
+  text-align: left;
+  letter-spacing: 0.5px;
+  border: none;
+  border-radius: 0;
+}
+
+.fw-collapsible-btn:hover {
+  background: rgba(0, 217, 255, 0.05);
+}
+
+.fw-chevron {
+  font-size: 0.6rem;
+  color: var(--text-secondary);
+}
+
+.fw-collapsible-body {
+  padding: 16px;
+  background: var(--bg-tertiary);
+  border-top: 1px solid var(--border);
+}
+
+/* ── Guide content ───────────────────────────────────────────────────────── */
+
+.fw-guide-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.fw-guide-body h4 {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-primary);
+  margin-top: 4px;
+}
+
+.fw-guide-body p {
+  margin: 0;
+}
+
+.fw-guide-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  padding-left: 20px;
+}
+
+.fw-guide-list li {
+  padding-left: 4px;
+}
+
+.fw-guide-list ul {
+  margin-top: 6px;
+  padding-left: 18px;
+}
+
+.fw-code {
+  display: block;
+  margin: 6px 0;
+  padding: 6px 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--accent-alt);
+}
+
+.fw-note {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* ── Variant table ───────────────────────────────────────────────────────── */
+
+.fw-variant-table {
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+  font-size: 0.78rem;
+}
+
+.fw-variant-row {
+  display: grid;
+  grid-template-columns: 140px 1fr 1fr;
+  gap: 0;
+}
+
+.fw-variant-row > span {
+  padding: 6px 10px;
+  border-right: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.fw-variant-row > span:last-child {
+  border-right: none;
+}
+
+.fw-variant-header {
+  background: var(--bg-primary);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.fw-variant-row:not(.fw-variant-header) {
+  border-top: 1px solid var(--border);
+}
+
+.fw-variant-row:not(.fw-variant-header) > span {
+  color: var(--text-primary);
+}
+
+/* ── Unlock combo display ────────────────────────────────────────────────── */
+
+.fw-unlock-combo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: rgba(0, 217, 255, 0.05);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  flex-wrap: wrap;
+}
+
+.fw-unlock-key {
+  font-size: 0.78rem;
+  color: var(--accent);
+  padding: 3px 8px;
+  background: rgba(0, 217, 255, 0.08);
+  border: 1px solid rgba(0, 217, 255, 0.3);
+  border-radius: 2px;
+}
+
+.fw-unlock-plus {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+code {
+  background: rgba(0, 217, 255, 0.08);
+  color: var(--accent);
+  padding: 1px 5px;
+  border-radius: 2px;
+  font-size: 0.85em;
+}
