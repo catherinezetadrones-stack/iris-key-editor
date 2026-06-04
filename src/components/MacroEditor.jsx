@@ -77,7 +77,8 @@ function ActionRow({ action, index, onUpdate, onRemove }) {
 
 // ── Main component ───────────────────────────────────────────────────────────
 
-export default function MacroEditor({ device }) {
+export default function MacroEditor({ device, addDebugLog, reloadKey = 0 }) {
+  const log = addDebugLog ?? (() => {});
   const [macros, setMacros]           = useState(null);  // null = not loaded
   const [bufferSize, setBufferSize]   = useState(0);
   const [macroCount, setMacroCount]   = useState(0);
@@ -90,8 +91,14 @@ export default function MacroEditor({ device }) {
     try {
       setStatus('Reading macro data…');
       const info = await invoke('get_macro_info');
+      log(`Macros: ${info.count} slots, ${info.buffer_size} byte buffer`);
       const raw  = await invoke('read_macros');
+      // Log first non-zero byte to confirm buffer has content
+      const firstNonZero = raw.findIndex(b => b !== 0);
+      log(`Macro buffer: first non-zero byte at index ${firstNonZero === -1 ? 'none (empty)' : firstNonZero}`);
       const parsed = parseBuffer(raw, info.count);
+      const populated = parsed.filter(m => m.length > 0).length;
+      log(`Macro parse: ${populated}/${info.count} slots have actions`);
       setMacros(parsed);
       setMacroCount(info.count);
       setBufferSize(info.buffer_size);
@@ -100,10 +107,11 @@ export default function MacroEditor({ device }) {
       setStatus('');
     } catch (err) {
       setStatus(`Load error: ${err}`);
+      log(`Macro load error: ${err}`);
     }
   }, [device]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [load, reloadKey]);
 
   const handleSave = async () => {
     if (!macros) return;
