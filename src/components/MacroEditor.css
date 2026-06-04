@@ -1,0 +1,218 @@
+/* MacroEditor.css */
+
+.macro-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+}
+
+.macro-hint {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.macro-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 10px;
+}
+
+.macro-header h3 {
+  color: var(--accent);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.macro-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.macro-status {
+  font-size: 0.75rem;
+  color: var(--accent-alt);
+}
+
+.macro-status.error {
+  color: var(--danger);
+}
+
+.macro-body {
+  display: flex;
+  gap: 20px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ── Slot list ───────────────────────────────────────────────────────────── */
+
+.macro-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 70px;
+  overflow-y: auto;
+}
+
+.macro-slots-label {
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+}
+
+.macro-slot-btn {
+  padding: 5px 8px;
+  font-size: 0.75rem;
+  text-align: left;
+  letter-spacing: 0.5px;
+}
+
+.macro-slot-btn.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(0, 217, 255, 0.08);
+}
+
+/* ── Action list ─────────────────────────────────────────────────────────── */
+
+.macro-actions {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.macro-actions-header {
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.macro-actions-title {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  letter-spacing: 0.5px;
+}
+
+.macro-empty {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* ── Action row ──────────────────────────────────────────────────────────── */
+
+.action-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+}
+
+.action-type-sel {
+  padding: 4px 6px;
+  font-size: 0.72rem;
+  min-width: 80px;
+}
+
+.action-input {
+  flex: 1;
+  padding: 4px 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  border-radius: 2px;
+}
+
+.action-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.action-hid-input {
+  flex: none;
+  width: 70px;
+}
+
+.action-keycode {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.action-key-name {
+  font-size: 0.72rem;
+  color: var(--accent);
+  min-width: 48px;
+  text-align: center;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  background: var(--bg-primary);
+}
+
+.action-unit {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+
+.action-remove-btn {
+  padding: 2px 8px;
+  font-size: 0.9rem;
+  line-height: 1;
+  color: var(--text-secondary);
+  border-color: transparent;
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.action-remove-btn:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+  box-shadow: 0 0 6px rgba(255, 71, 87, 0.3);
+}
+
+/* ── Add row / info ──────────────────────────────────────────────────────── */
+
+.macro-add-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.macro-add-label {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.macro-add-row button {
+  padding: 4px 10px;
+  font-size: 0.72rem;
+}
+
+.macro-buffer-info {
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+  margin-top: auto;
+  padding-top: 8px;
+}
