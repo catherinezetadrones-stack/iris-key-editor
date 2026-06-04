@@ -1,0 +1,294 @@
+/* CombosEditor.css */
+
+.combo-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.combo-editor h3 {
+  font-size: 0.9rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 12px;
+}
+
+.combo-hint {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  padding: 16px 0;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+
+.combo-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.combo-header h3 { margin-bottom: 0; }
+
+.combo-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.combo-status {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+/* ── Body — three-column layout ─────────────────────────────────────────── */
+
+.combo-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Left: slot list */
+.combo-slots {
+  width: 82px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 8px 12px 0;
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+
+.combo-slots-label {
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding-bottom: 6px;
+}
+
+.combo-slot-btn {
+  padding: 5px 6px;
+  font-size: 0.75rem;
+  text-align: left;
+  letter-spacing: 0;
+}
+
+.combo-slot-btn.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(0, 217, 255, 0.08);
+}
+
+/* Center: entry form */
+.combo-main {
+  width: 380px;
+  flex-shrink: 0;
+  padding: 16px;
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+
+.combo-slot-title {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+/* ── Entry form ─────────────────────────────────────────────────────────── */
+
+.combo-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.combo-section-label {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.combo-hint-inline {
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+  text-transform: none;
+  letter-spacing: 0;
+  font-style: italic;
+}
+
+.combo-inputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.combo-kc-btn {
+  font-size: 0.8rem;
+  padding: 5px 8px;
+  letter-spacing: 0;
+  min-width: 52px;
+}
+
+.combo-kc-btn.empty {
+  color: var(--text-secondary);
+  border-style: dashed;
+}
+
+.combo-kc-btn.active-field {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(0, 217, 255, 0.08);
+  box-shadow: 0 0 6px rgba(0, 217, 255, 0.2);
+}
+
+.combo-output-btn {
+  color: var(--accent-alt);
+  border-color: var(--accent-alt);
+}
+
+.combo-output-btn.active-field {
+  color: var(--accent-alt);
+  border-color: var(--accent-alt);
+  background: rgba(0, 255, 136, 0.08);
+  box-shadow: 0 0 6px rgba(0, 255, 136, 0.2);
+}
+
+/* Right: key picker panel — always visible */
+.combo-picker-panel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.combo-picker-label {
+  padding: 8px 12px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.combo-picker-label strong {
+  color: var(--accent);
+}
+
+.combo-picker-panel .key-picker {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+  flex-shrink: 1;
+}
+
+/* ── VIAL required / locked ─────────────────────────────────────────────── */
+
+.combo-vial-required,
+.combo-locked {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 500px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-secondary);
+}
+
+.combo-vial-title {
+  font-size: 0.9rem;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.combo-vial-body {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* ── Unlock overlay ─────────────────────────────────────────────────────── */
+
+.combo-editor-relative { position: relative; }
+
+.unlock-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 400;
+  border-radius: 2px;
+}
+
+.unlock-box {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 32px;
+  max-width: 380px;
+  width: 90%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+  box-shadow: 0 0 40px rgba(0, 217, 255, 0.15);
+}
+
+.unlock-icon { font-size: 2rem; line-height: 1; }
+
+.unlock-title {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.unlock-body { font-size: 0.8rem; color: var(--text-secondary); line-height: 1.6; }
+
+.unlock-keys {
+  font-size: 0.78rem;
+  color: var(--text-primary);
+  background: rgba(0, 217, 255, 0.05);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 6px 12px;
+  width: 100%;
+}
+
+.unlock-actions { display: flex; gap: 8px; justify-content: center; }
+
+.unlock-progress {
+  width: 100%;
+  height: 6px;
+  background: var(--bg-secondary);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.unlock-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-alt));
+  border-radius: 3px;
+  transition: width 0.2s ease;
+}
+
+.unlock-countdown { font-size: 0.75rem; color: var(--text-secondary); }
+.unlock-error { color: var(--danger); }

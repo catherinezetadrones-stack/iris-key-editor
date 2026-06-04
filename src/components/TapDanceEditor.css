@@ -1,0 +1,319 @@
+/* TapDanceEditor.css */
+
+.td-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.td-editor h3 {
+  font-size: 0.9rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 12px;
+}
+
+.td-hint {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  padding: 16px 0;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+
+.td-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.td-header h3 { margin-bottom: 0; }
+
+.td-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.td-status {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+/* ── Body — three-column layout matching the Editor tab ─────────────────── */
+
+.td-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  gap: 0;
+}
+
+/* Left: slot list */
+.td-slots {
+  width: 90px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 8px 12px 0;
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+
+.td-slots-label {
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding-bottom: 6px;
+}
+
+.td-slot-btn {
+  padding: 5px 6px;
+  font-size: 0.75rem;
+  text-align: left;
+  letter-spacing: 0;
+}
+
+.td-slot-btn.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(0, 217, 255, 0.08);
+}
+
+/* Center: entry form */
+.td-main {
+  width: 380px;
+  flex-shrink: 0;
+  padding: 16px 16px 16px 16px;
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+
+.td-slot-title {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.td-slot-title code {
+  color: var(--accent);
+  background: rgba(0, 217, 255, 0.08);
+  padding: 1px 5px;
+  border-radius: 2px;
+}
+
+/* ── Entry form ─────────────────────────────────────────────────────────── */
+
+.td-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.td-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.td-field-label {
+  width: 90px;
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.td-kc-btn {
+  flex: 1;
+  text-align: left;
+  font-size: 0.82rem;
+  letter-spacing: 0;
+  padding: 5px 8px;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.td-kc-btn:hover { color: var(--accent); }
+
+.td-kc-btn.active-field {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(0, 217, 255, 0.08);
+  box-shadow: 0 0 6px rgba(0, 217, 255, 0.2);
+}
+
+.td-term-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+
+.td-term-input {
+  width: 70px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  padding: 4px 6px;
+  border-radius: 2px;
+}
+
+.td-term-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.td-term-unit {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+/* Right: key picker panel — always visible */
+.td-picker-panel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.td-picker-label {
+  padding: 8px 12px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.td-picker-label strong {
+  color: var(--accent);
+}
+
+/* KeyPicker fills the remaining space */
+.td-picker-panel .key-picker {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+  flex-shrink: 1;
+}
+
+/* ── VIAL required / locked ─────────────────────────────────────────────── */
+
+.td-vial-required,
+.td-locked {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 500px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-secondary);
+}
+
+.td-vial-title {
+  font-size: 0.9rem;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.td-vial-body {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* ── Unlock overlay ─────────────────────────────────────────────────────── */
+
+.td-editor-relative { position: relative; }
+
+.unlock-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 400;
+  border-radius: 2px;
+}
+
+.unlock-box {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 32px;
+  max-width: 380px;
+  width: 90%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+  box-shadow: 0 0 40px rgba(0, 217, 255, 0.15);
+}
+
+.unlock-icon { font-size: 2rem; line-height: 1; }
+
+.unlock-title {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.unlock-body {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.unlock-keys {
+  font-size: 0.78rem;
+  color: var(--text-primary);
+  background: rgba(0, 217, 255, 0.05);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 6px 12px;
+  width: 100%;
+}
+
+.unlock-actions { display: flex; gap: 8px; justify-content: center; }
+
+.unlock-progress {
+  width: 100%;
+  height: 6px;
+  background: var(--bg-secondary);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.unlock-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-alt));
+  border-radius: 3px;
+  transition: width 0.2s ease;
+}
+
+.unlock-countdown { font-size: 0.75rem; color: var(--text-secondary); }
+.unlock-error { color: var(--danger); }
