@@ -63,8 +63,7 @@
         "minWidth": 1100,
         "resizable": true,
         "maximized": true,
-        "title": "Iris-LM Editor",
-        "backgroundColor": "#0a0e27"
+        "title": "Iris-LM Editor"
       }
     ]
   }
