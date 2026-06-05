@@ -8,8 +8,8 @@
 // Higher value = key sits lower on screen.
 // Profile peaks at the middle finger (d=3 left / d=2 right) and drops on
 // both sides — matching the physical Iris-LM column stagger.
-export const STAGGER_LEFT  = [20, 20, 7, 0, 4, 12];  // pinky-outer→index-inner
-export const STAGGER_RIGHT = [12, 4, 0, 7, 20, 20];  // index-inner→pinky-outer
+export const STAGGER_LEFT  = [23, 23, 8, 0, 5, 14];  // pinky-outer→index-inner
+export const STAGGER_RIGHT = [14, 5, 0, 8, 23, 23];  // index-inner→pinky-outer
 
 // ── Default legends (shown when no keymap is loaded) ─────────────────────────
 // Order: physical left-to-right as seen looking at the keyboard.
@@ -72,16 +72,16 @@ const RIGHT_THUMB_MATRIX = [[9,5],[9,4],[9,3],[9,2]];
 // col/row = CSS grid cell; xOff/yOff = px offset from that cell's top-left
 // (set via the thumb-editor.html tool to match the physical keyboard shape).
 const LEFT_THUMB_CELLS  = [
-  { col: 7, row: 5, xOff:  -5, yOff: -23, rotation:  20 }, // HOME
-  { col: 7, row: 5, xOff: -24, yOff:  28, rotation:  20 }, // SFT·ENT
-  { col: 6, row: 5, xOff: -26, yOff:  15, rotation:   0 }, // MO(1)
-  { col: 5, row: 5, xOff: -21, yOff:   3, rotation:   0 }, // LGUI
+  { col: 7, row: 5, xOff:  -6, yOff: -26, rotation:  20 }, // HOME
+  { col: 7, row: 5, xOff: -27, yOff:  32, rotation:  20 }, // SFT·ENT
+  { col: 6, row: 5, xOff: -30, yOff:  17, rotation:   0 }, // MO(1)
+  { col: 5, row: 5, xOff: -24, yOff:   3, rotation:   0 }, // LGUI
 ];
 const RIGHT_THUMB_CELLS = [
-  { col: 1, row: 5, xOff:   5, yOff: -23, rotation: -20 }, // END
-  { col: 1, row: 5, xOff:  24, yOff:  28, rotation: -20 }, // LT3·SP
-  { col: 2, row: 5, xOff:  26, yOff:  15, rotation:   0 }, // MO(2)
-  { col: 3, row: 5, xOff:  21, yOff:   3, rotation:   0 }, // ,
+  { col: 1, row: 5, xOff:   6, yOff: -26, rotation: -20 }, // END
+  { col: 1, row: 5, xOff:  27, yOff:  32, rotation: -20 }, // LT3·SP
+  { col: 2, row: 5, xOff:  30, yOff:  17, rotation:   0 }, // MO(2)
+  { col: 3, row: 5, xOff:  24, yOff:   3, rotation:   0 }, // ,
 ];
 
 // ── Layout builder ────────────────────────────────────────────────────────────
@@ -332,3 +332,33 @@ export const IRIS_LED_GRID = {
     [67, 66, 64, 63, -1, -1],   // row 9 — thumb cluster (cols 5-2)
   ],
 };
+
+// ── Key ID → LED index lookup ─────────────────────────────────────────────────
+// Used by the editor's lighting glow overlay to colour each key.
+// Main key IDs are `{side}-m-{r}-{d}`; rows/cols map directly to IRIS_LED_GRID.
+// Thumb IDs are `{side}-t-{t}` and are hardcoded (grid positions don't align).
+// Declared after IRIS_LED_GRID to avoid temporal dead zone.
+export const KEY_TO_LED = new Map([
+  // Left main keys
+  ...[...HALVES.left].filter(k => !k.thumb).map(k => {
+    const [, , r, d] = k.id.split('-').map((x, i) => i >= 2 ? parseInt(x) : x);
+    const idx = IRIS_LED_GRID.left[r]?.[d];
+    return (idx != null && idx !== -1) ? [k.id, idx] : null;
+  }).filter(Boolean),
+  // Right main keys
+  ...[...HALVES.right].filter(k => !k.thumb).map(k => {
+    const [, , r, d] = k.id.split('-').map((x, i) => i >= 2 ? parseInt(x) : x);
+    const idx = IRIS_LED_GRID.right[r]?.[d];
+    return (idx != null && idx !== -1) ? [k.id, idx] : null;
+  }).filter(Boolean),
+  // Left thumb cluster (hardcoded — rotated keys don't align to the grid formula)
+  ['left-t-0', 33],  // HOME
+  ['left-t-1', 32],  // SFT·ENT
+  ['left-t-2', 30],  // MO(1)
+  ['left-t-3', 29],  // LGUI
+  // Right thumb cluster
+  ['right-t-0', 67], // END
+  ['right-t-1', 66], // LT3·SP
+  ['right-t-2', 64], // MO(2)
+  ['right-t-3', 63], // ,
+]);
