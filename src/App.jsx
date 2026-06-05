@@ -13,6 +13,7 @@ import KeyPicker from './components/KeyPicker';
 import TapDanceEditor from './components/TapDanceEditor';
 import CombosEditor from './components/CombosEditor';
 import FirmwarePanel from './components/FirmwarePanel';
+import LightingPanel from './components/LightingPanel';
 
 export default function App() {
   const [devices, setDevices] = useState([]);
@@ -202,7 +203,31 @@ export default function App() {
     } catch {
       addDebugLog('Macros unavailable — exporting without');
     }
-    return { version: 1, keyboard: 'iris-lm', layers, macros };
+    let lighting = null;
+    try {
+      const current = await invoke('get_lighting');
+      lighting = Array.from({ length: 4 }, () => ({ ...current }));
+    } catch {
+      addDebugLog('Lighting unavailable — exporting without');
+    }
+    let tap_dance = null;
+    let combos    = null;
+    try {
+      const vs = await invoke('detect_vial');
+      if (vs.supported) {
+        if (vs.td_count > 0) {
+          tap_dance = await invoke('vial_get_all_tap_dance', { count: vs.td_count });
+          addDebugLog(`Tap dance: exported ${tap_dance.length} entries`);
+        }
+        if (vs.combo_count > 0) {
+          combos = await invoke('vial_get_all_combos', { count: vs.combo_count });
+          addDebugLog(`Combos: exported ${combos.length} entries`);
+        }
+      }
+    } catch (err) {
+      addDebugLog(`Tap dance/combos unavailable — exporting without: ${err}`);
+    }
+    return { version: 1, keyboard: 'iris-lm', layers, macros, lighting, tap_dance, combos, lighting_perkey: lightingPerKeyColors, scroll_settings: scrollSettings };
   };
 
   // Save a profile object to a user-chosen file. Returns true if saved.
@@ -226,6 +251,13 @@ export default function App() {
 
   const [macroReloadKey, setMacroReloadKey] = useState(0);
 
+  const [lightingPerKeyColors, setLightingPerKeyColors] = useState(
+    () => Array.from({ length: 4 }, () => Array(68).fill(null))
+  );
+  const [scrollSettings, setScrollSettings] = useState(
+    () => Array.from({ length: 4 }, (_, i) => ({ text: '', speed_ms: 150, fg_hsv: [0, 255, 100], bg_on: false, bg_hsv: [170, 255, 30], target_layer: i }))
+  );
+
   const handleImportKeymap = async () => {
     if (!selectedDevice) return;
     try {
@@ -240,6 +272,13 @@ export default function App() {
       addDebugLog(`Profile macros: ${macroSlots} slots found`);
       if (macroSlots > 0) {
         try {
+          // VIAL gates macro writes behind its lock mechanism. Check before writing
+          // so we get a clear error instead of a silent no-op.
+          const vialStatus = await invoke('detect_vial').catch(() => null);
+          if (vialStatus?.supported && !vialStatus.unlocked) {
+            addDebugLog('⚠ Keyboard is VIAL-locked — macro write blocked. Go to the Tap Dance tab → Unlock Keyboard, then re-import.');
+            throw new Error('Keyboard locked — unlock via Tap Dance tab first');
+          }
           const info  = await invoke('get_macro_info');
           addDebugLog(`Keyboard macro buffer: ${info.count} slots, ${info.buffer_size} bytes`);
           const bytes = serializeBuffer(profile.macros, info.buffer_size);
@@ -252,6 +291,56 @@ export default function App() {
         }
       } else {
         addDebugLog('No macros in profile — skipped');
+      }
+      if (Array.isArray(profile.lighting) && profile.lighting.length > 0) {
+        try {
+          await invoke('set_lighting', { state: profile.lighting[0] });
+          await invoke('save_lighting');
+          addDebugLog('Lighting restored (layer 0 preset applied)');
+        } catch (err) {
+          addDebugLog(`Lighting restore failed: ${err}`);
+        }
+      }
+      // Tap dance + combos are VIAL-locked — check once, apply both
+      const hasVialData = Array.isArray(profile.tap_dance) || Array.isArray(profile.combos);
+      if (hasVialData) {
+        let vialOk = false;
+        try {
+          const vs = await invoke('detect_vial').catch(() => null);
+          if (!vs?.supported) {
+            addDebugLog('VIAL not detected — tap dance/combos skipped');
+          } else if (!vs.unlocked) {
+            addDebugLog('⚠ Keyboard locked — tap dance/combos skipped. Unlock via Tap Dance tab then re-import.');
+          } else {
+            vialOk = true;
+          }
+        } catch (err) {
+          addDebugLog(`VIAL check failed: ${err}`);
+        }
+        if (vialOk) {
+          if (Array.isArray(profile.tap_dance) && profile.tap_dance.length > 0) {
+            try {
+              for (let i = 0; i < profile.tap_dance.length; i++)
+                await invoke('vial_set_tap_dance_entry', { idx: i, entry: profile.tap_dance[i] });
+              addDebugLog(`Tap dance restored (${profile.tap_dance.length} entries)`);
+            } catch (err) { addDebugLog(`Tap dance restore failed: ${err}`); }
+          }
+          if (Array.isArray(profile.combos) && profile.combos.length > 0) {
+            try {
+              for (let i = 0; i < profile.combos.length; i++)
+                await invoke('vial_set_combo_entry', { idx: i, entry: profile.combos[i] });
+              addDebugLog(`Combos restored (${profile.combos.length} entries)`);
+            } catch (err) { addDebugLog(`Combos restore failed: ${err}`); }
+          }
+        }
+      }
+      if (Array.isArray(profile.lighting_perkey)) {
+        setLightingPerKeyColors(profile.lighting_perkey);
+        addDebugLog('Per-key colors restored');
+      }
+      if (Array.isArray(profile.scroll_settings)) {
+        setScrollSettings(profile.scroll_settings);
+        addDebugLog('Scroll settings restored');
       }
       await loadKeymap(currentLayer);
       addDebugLog('Profile imported');
@@ -329,6 +418,7 @@ export default function App() {
               <button className={`tab${activeTab === 'macros'    ? ' active' : ''}`} onClick={() => handleTabChange('macros')}>Macros</button>
               <button className={`tab${activeTab === 'tapdance'  ? ' active' : ''}`} onClick={() => handleTabChange('tapdance')}>Tap Dance</button>
               <button className={`tab${activeTab === 'combos'    ? ' active' : ''}`} onClick={() => handleTabChange('combos')}>Combos</button>
+              <button className={`tab${activeTab === 'lighting'  ? ' active' : ''}`} onClick={() => handleTabChange('lighting')}>Lighting</button>
               <button className={`tab${activeTab === 'firmware'  ? ' active' : ''}`} onClick={() => handleTabChange('firmware')}>Firmware</button>
               <button className={`tab${activeTab === 'settings'  ? ' active' : ''}`} onClick={() => handleTabChange('settings')}>Settings</button>
               <button className={`tab${activeTab === 'test'      ? ' active' : ''}`} onClick={() => handleTabChange('test')}>Key Test</button>
@@ -363,6 +453,17 @@ export default function App() {
               {activeTab === 'macros'    && <MacroEditor device={selectedDevice} addDebugLog={addDebugLog} reloadKey={macroReloadKey} />}
               {activeTab === 'tapdance' && <TapDanceEditor device={selectedDevice} />}
               {activeTab === 'combos'   && <CombosEditor  device={selectedDevice} />}
+              {activeTab === 'lighting' && (
+                <LightingPanel
+                  device={selectedDevice}
+                  addDebugLog={addDebugLog}
+                  layer={currentLayer}
+                  perKeyColors={lightingPerKeyColors}
+                  onPerKeyColorsChange={setLightingPerKeyColors}
+                  scrollSettings={scrollSettings}
+                  onScrollSettingsChange={setScrollSettings}
+                />
+              )}
               {activeTab === 'firmware' && (
                 <FirmwarePanel
                   device={selectedDevice}

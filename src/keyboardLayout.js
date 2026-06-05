@@ -185,6 +185,12 @@ export const KEYCODE_MAP = (() => {
     0x00bb: 'BRIU', 0x00bc: 'BRID',
     // QMK special
     0x7c00: 'QK_BOOT',
+    // RGB Matrix keycodes (QK_RGB_MATRIX base = 0x7800)
+    0x7800: 'RGB_TOG',  0x7801: 'RGB_MOD',  0x7802: 'RGB_RMOD',
+    0x7803: 'RGB_HUI',  0x7804: 'RGB_HUD',
+    0x7805: 'RGB_SAI',  0x7806: 'RGB_SAD',
+    0x7807: 'RGB_VAI',  0x7808: 'RGB_VAD',
+    0x7809: 'RGB_SPI',  0x780a: 'RGB_SPD',
     // Common shifted symbols (S(kc) = 0x0200 | kc)
     0x0220: '!', 0x0221: '@', 0x0222: '#', 0x0223: '$', 0x0224: '%',
     0x0225: '^', 0x0226: '(', 0x0227: ')', 0x0228: '{', 0x022d: '_',
@@ -251,3 +257,78 @@ export function decodeQuantum(code) {
 
   return null; // caller will show hex
 }
+
+// ── VIALRGB effect names ──────────────────────────────────────────────────────
+// Maps VIALRGB effect ID (u16 from firmware) to a display name.
+// IDs are stable/never reordered per vialrgb_effects.inc spec.
+// Only IDs the Iris-LM firmware has compiled in will appear in GET_SUPPORTED;
+// others are harmless to list here as labels.
+export const VIALRGB_EFFECTS = {
+   0: 'Off',
+   1: 'Direct (per-key)',
+   2: 'Solid Color',
+   3: 'Alphas Mods',
+   4: 'Gradient — Up/Down',
+   5: 'Gradient — Left/Right',
+   6: 'Breathing',
+   7: 'Band Saturation',
+   8: 'Band Value',
+   9: 'Band Pinwheel Sat',
+  10: 'Band Pinwheel Val',
+  11: 'Band Spiral Sat',
+  12: 'Band Spiral Val',
+  13: 'Cycle All',
+  14: 'Cycle Left/Right',
+  15: 'Cycle Up/Down',
+  16: 'Rainbow Chevron',
+  17: 'Cycle Out-In',
+  18: 'Cycle Out-In Dual',
+  19: 'Cycle Pinwheel',
+  20: 'Cycle Spiral',
+  21: 'Dual Beacon',
+  22: 'Rainbow Beacon',
+  23: 'Rainbow Pinwheels',
+  24: 'Raindrops',
+  25: 'Jellybean Raindrops',
+  26: 'Hue Breathing',
+  27: 'Hue Pendulum',
+  28: 'Hue Wave',
+  29: 'Typing Heatmap',
+  30: 'Digital Rain',
+  31: 'Solid Reactive Simple',
+  32: 'Solid Reactive',
+  33: 'Solid Reactive Wide',
+  34: 'Solid Reactive Multiwide',
+  35: 'Solid Reactive Cross',
+  36: 'Solid Reactive Multicross',
+  37: 'Solid Reactive Nexus',
+  38: 'Solid Reactive Multinexus',
+  39: 'Splash',
+  40: 'Multisplash',
+  41: 'Solid Splash',
+  42: 'Solid Multisplash',
+  43: 'Pixel Rain',
+  44: 'Pixel Fractal',
+};
+
+// ── Iris-LM per-key LED grid ──────────────────────────────────────────────────
+// Each row is 6 LED indices matching physical columns left→right.
+// -1 = empty cell (no key at that position).
+// Left half: rows 0-3 are main keys, row 4 is the thumb cluster (cols 2-5 only).
+// Right half: displayed mirrored so col 5 (inner/Y-H-N) is leftmost.
+export const IRIS_LED_GRID = {
+  left: [
+    [ 0,  2,  3,  5,  6,  8],   // row 0 — col0..col5
+    [14, 13, 12, 11, 10,  9],   // row 1
+    [15, 16, 17, 18, 19, 20],   // row 2
+    [28, 26, 25, 23, 22, 21],   // row 3
+    [-1, -1, 33, 32, 30, 29],   // row 4 — thumb cluster (cols 2-5)
+  ],
+  right: [
+    [42, 40, 39, 37, 36, 34],   // row 5 — col5→col0 (mirrored)
+    [43, 44, 45, 46, 47, 48],   // row 6
+    [54, 53, 52, 51, 50, 49],   // row 7
+    [55, 56, 57, 59, 60, 62],   // row 8
+    [67, 66, 64, 63, -1, -1],   // row 9 — thumb cluster (cols 5-2)
+  ],
+};

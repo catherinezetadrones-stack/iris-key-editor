@@ -14,10 +14,20 @@
 
 use hidapi::{HidApi, HidDevice};
 
-use crate::via_protocol::{cmd, keyboard_value, vial, key_offset, COMMAND_TIMEOUT_MS, DFU_PID,
+use crate::via_protocol::{cmd, keyboard_value, vial, vialrgb, key_offset, COMMAND_TIMEOUT_MS, DFU_PID,
                           DFU_VID, KEEBIO_VID, LAYER_BYTES, MATRIX_COLS, MATRIX_ROWS,
                           RAW_USAGE, RAW_USAGE_PAGE, REPORT_LEN};
 use crate::DeviceInfo;
+
+/// VIALRGB lighting state: effect (VIALRGB effect ID), speed, hue, sat, val (all 0–255).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct VialRGBState {
+    pub effect: u16,
+    pub speed:  u8,
+    pub hue:    u8,
+    pub sat:    u8,
+    pub val:    u8,
+}
 
 /// An opened VIA keyboard ready for commands.
 pub struct ViaKeyboard {
@@ -415,6 +425,70 @@ impl ViaKeyboard {
             layout: Some("Iris-LM 4x6 + thumbs".to_string()),
             num_layers: layers,
         })
+    }
+
+    // ── VIALRGB lighting ──────────────────────────────────────────────────────
+    //
+    // The Iris-LM firmware uses VIALRGB_ENABLE (quantum/vialrgb.c).  Lighting
+    // control goes through VIA commands 0x07/0x08 with VIALRGB sub-commands at
+    // data[1]; data[2..] carry the arguments.
+    //
+    // One packet atomically reads or writes: effect (u16 LE) + speed + hue + sat + val.
+
+    /// Read current VIALRGB state from the keyboard.
+    pub fn get_lighting(&self) -> Result<VialRGBState, String> {
+        let mut payload = [0u8; REPORT_LEN];
+        payload[0] = cmd::LIGHTING_GET_VALUE;
+        payload[1] = vialrgb::GET_MODE;
+        let r = self.command(&payload)?;
+        Ok(VialRGBState {
+            effect: (r[2] as u16) | ((r[3] as u16) << 8),
+            speed:  r[4],
+            hue:    r[5],
+            sat:    r[6],
+            val:    r[7],
+        })
+    }
+
+    /// Apply a VIALRGB state (does not persist to EEPROM — call save_lighting after).
+    pub fn set_lighting(&self, s: &VialRGBState) -> Result<(), String> {
+        let mut payload = [0u8; REPORT_LEN];
+        payload[0] = cmd::LIGHTING_SET_VALUE;
+        payload[1] = vialrgb::SET_MODE;
+        payload[2] = (s.effect & 0xFF) as u8;
+        payload[3] = (s.effect >> 8) as u8;
+        payload[4] = s.speed;
+        payload[5] = s.hue;
+        payload[6] = s.sat;
+        payload[7] = s.val;
+        self.command(&payload)?;
+        Ok(())
+    }
+
+    /// Flush current VIALRGB state to EEPROM.
+    pub fn save_lighting(&self) -> Result<(), String> {
+        let mut payload = [0u8; REPORT_LEN];
+        payload[0] = cmd::LIGHTING_SAVE;
+        self.command(&payload)?;
+        Ok(())
+    }
+
+    /// Set individual key colors in VIALRGB Direct mode.
+    /// `leds` is a slice of (led_index, hue, sat, val) up to 9 per call.
+    pub fn set_led_colors(&self, first_index: u16, colors: &[(u8, u8, u8)]) -> Result<(), String> {
+        let mut payload = [0u8; REPORT_LEN];
+        payload[0] = cmd::LIGHTING_SET_VALUE;
+        payload[1] = vialrgb::FASTSET;
+        payload[2] = (first_index & 0xFF) as u8;
+        payload[3] = (first_index >> 8) as u8;
+        payload[4] = colors.len().min(9) as u8;
+        for (i, &(h, s, v)) in colors.iter().take(9).enumerate() {
+            payload[5 + i * 3]     = h;
+            payload[5 + i * 3 + 1] = s;
+            payload[5 + i * 3 + 2] = v;
+        }
+        self.command(&payload)?;
+        Ok(())
     }
 }
 

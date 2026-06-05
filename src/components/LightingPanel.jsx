@@ -1,0 +1,742 @@
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { invoke } from '@tauri-apps/api/tauri';
+import { VIALRGB_EFFECTS, IRIS_LED_GRID } from '../keyboardLayout';
+import './LightingPanel.css';
+
+const NUM_LAYERS = 4;
+const NUM_LEDS   = 68;
+const DEFAULT_STATE = { effect: 6, speed: 128, hue: 0, sat: 255, val: 100 };
+
+// ── Color utilities ────────────────────────────────────────────────────────────
+
+function hsvToCss(h, s, v) {
+  return `hsl(${Math.round((h / 255) * 360)}, ${Math.round((s / 255) * 100)}%, ${Math.round((v / 255) * 50)}%)`;
+}
+
+function hsvToRgb255(h, s, v) {
+  const hDeg = (h / 255) * 360;
+  const sN = s / 255, vN = v / 255;
+  const c = vN * sN;
+  const x = c * (1 - Math.abs((hDeg / 60) % 2 - 1));
+  const m = vN - c;
+  let r, g, b;
+  if      (hDeg < 60)  { r = c; g = x; b = 0; }
+  else if (hDeg < 120) { r = x; g = c; b = 0; }
+  else if (hDeg < 180) { r = 0; g = c; b = x; }
+  else if (hDeg < 240) { r = 0; g = x; b = c; }
+  else if (hDeg < 300) { r = x; g = 0; b = c; }
+  else                  { r = c; g = 0; b = x; }
+  return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
+}
+
+function hsvToHex(h, s, v) {
+  const [r, g, b] = hsvToRgb255(h, s, v);
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+}
+
+function hexToHsv(hex) {
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  let h = 0;
+  if (d !== 0) {
+    if      (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+    else if (max === g) h = ((b - r) / d + 2) / 6;
+    else                h = ((r - g) / d + 4) / 6;
+  }
+  return [Math.round(h * 255), Math.round((max === 0 ? 0 : d / max) * 255), Math.round(max * 255)];
+}
+
+// ── C code generator ───────────────────────────────────────────────────────────
+
+function buildCCode(perKeyColors) {
+  const toHex2 = n => n.toString(16).padStart(2, '0').toUpperCase();
+  const cases = [];
+  for (let layer = 0; layer < NUM_LAYERS; layer++) {
+    const cols = perKeyColors[layer];
+    const lines = [];
+    for (let led = 0; led < NUM_LEDS; led++) {
+      if (!cols[led]) continue;
+      const [r, g, b] = hsvToRgb255(...cols[led]);
+      lines.push(`            RGB_MATRIX_INDICATOR_SET_COLOR(${led.toString().padStart(2)}, 0x${toHex2(r)}, 0x${toHex2(g)}, 0x${toHex2(b)});`);
+    }
+    if (lines.length) {
+      cases.push(`        case ${layer}:\n${lines.join('\n')}\n            break;`);
+    }
+  }
+  if (!cases.length) return '// No per-key colors configured on any layer.';
+  return [
+    'bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {',
+    '    switch (get_highest_layer(layer_state)) {',
+    cases.join('\n'),
+    '    }',
+    '    return false;',
+    '}',
+  ].join('\n');
+}
+
+// ── Scroll-text font & LED grid ───────────────────────────────────────────────
+// 3-wide × 4-tall pixel font. Each char is [row0,row1,row2,row3], 3-bit mask:
+//   bit2 = left col, bit1 = mid col, bit0 = right col
+const SCROLL_FONT = {
+  ' ': [0,0,0,0],
+  'A': [2,5,7,5], 'B': [6,7,6,7], 'C': [3,4,4,3], 'D': [6,5,5,6],
+  'E': [7,6,4,7], 'F': [7,6,4,4], 'G': [3,4,5,3], 'H': [5,7,5,5],
+  'I': [7,2,2,7], 'J': [1,1,5,2], 'K': [5,6,6,5], 'L': [4,4,4,7],
+  'M': [7,2,5,5], 'N': [5,6,3,5], 'O': [2,5,5,2], 'P': [6,5,6,4],
+  'Q': [2,5,5,3], 'R': [6,5,6,5], 'S': [3,6,1,6], 'T': [7,2,2,2],
+  'U': [5,5,5,2], 'V': [5,5,2,2], 'W': [5,5,7,2], 'X': [5,2,2,5],
+  'Y': [5,2,2,2], 'Z': [7,1,4,7],
+  '0': [2,5,5,2], '1': [2,6,2,7], '2': [6,1,2,7], '3': [6,3,1,6],
+  '4': [5,7,1,1], '5': [7,6,1,6], '6': [3,4,6,2], '7': [7,1,2,2],
+  '8': [2,5,2,5], '9': [5,7,1,6],
+  '!': [2,2,0,2], '?': [2,1,2,0], '-': [0,7,0,0], '.': [0,0,0,2],
+  ':': [0,2,0,2],
+};
+
+// 12-wide × 4-tall grid of LED indices: left half cols 0-5, right half cols 5-0 (mirrored)
+const LED_GRID_12X4 = [
+  [ 0,  2,  3,  5,  6,  8, 42, 40, 39, 37, 36, 34],
+  [14, 13, 12, 11, 10,  9, 43, 44, 45, 46, 47, 48],
+  [15, 16, 17, 18, 19, 20, 54, 53, 52, 51, 50, 49],
+  [28, 26, 25, 23, 22, 21, 55, 56, 57, 59, 60, 62],
+];
+
+// Build a pixel tape from text. Returns tape[4][N] where each cell is 0 or 1.
+// Layout: 12-col blank lead-in, then chars (3px wide + 1px gap each).
+function buildScrollTape(text) {
+  const CHAR_W = 3, GAP = 1, LEAD = 12;
+  const tape = [[], [], [], []];
+  for (let i = 0; i < LEAD; i++) for (let r = 0; r < 4; r++) tape[r].push(0);
+  for (const ch of text.toUpperCase()) {
+    const def = SCROLL_FONT[ch] ?? SCROLL_FONT[' '];
+    for (let c = 0; c < CHAR_W; c++)
+      for (let r = 0; r < 4; r++) tape[r].push((def[r] >> (CHAR_W - 1 - c)) & 1);
+    for (let i = 0; i < GAP; i++) for (let r = 0; r < 4; r++) tape[r].push(0);
+  }
+  return tape;
+}
+
+function buildScrollCCode(text, layer, speedMs, fgHsv, bgHsv) {
+  if (!text.trim()) return '// Enter a message above.';
+  const tape = buildScrollTape(text);
+  const W    = tape[0].length;
+  const [fr, fg, fb] = hsvToRgb255(...fgHsv);
+  const [br, bg, bb] = bgHsv ? hsvToRgb255(...bgHsv) : [0, 0, 0];
+  const toH  = n => `0x${n.toString(16).padStart(2, '00').toUpperCase()}`;
+
+  const fmtRow = row => {
+    const chunks = [];
+    for (let i = 0; i < row.length; i += 16)
+      chunks.push('        ' + row.slice(i, i + 16).join(', '));
+    return chunks.join(',\n');
+  };
+  const tapeC  = tape.map((row, r) => `    /* row ${r} */ {\n${fmtRow(row)}\n    }`).join(',\n');
+  const gridC  = LED_GRID_12X4.map(row => `    {${row.map(v => String(v).padStart(3)).join(',')}}`).join(',\n');
+
+  return [
+    `// Scroll text: "${text}" on layer ${layer}`,
+    '// Generated by Iris Key Editor — paste into keymap.c',
+    '',
+    `#define SCROLL_LAYER  ${layer}`,
+    `#define SCROLL_SPEED  ${speedMs}   // ms per column step`,
+    `#define SCROLL_FG_R   ${toH(fr)}`,
+    `#define SCROLL_FG_G   ${toH(fg)}`,
+    `#define SCROLL_FG_B   ${toH(fb)}`,
+    `#define SCROLL_BG_R   ${toH(br)}`,
+    `#define SCROLL_BG_G   ${toH(bg)}`,
+    `#define SCROLL_BG_B   ${toH(bb)}`,
+    `#define TAPE_WIDTH    ${W}`,
+    '',
+    '// 12-wide × 4-tall main-key LED grid (left+right halves)',
+    'static const uint8_t IRIS_GRID[4][12] = {',
+    gridC,
+    '};',
+    '',
+    `// Pre-rendered scroll tape [4 rows][${W} cols]: 1=fg, 0=bg`,
+    'static const uint8_t SCROLL_TAPE[4][TAPE_WIDTH] = {',
+    tapeC,
+    '};',
+    '',
+    'static uint32_t scroll_timer  = 0;',
+    'static uint16_t scroll_offset = 0;',
+    '',
+    'bool rgb_matrix_indicators_advanced_user(uint8_t led_min __attribute__((unused)),',
+    '                                         uint8_t led_max __attribute__((unused))) {',
+    '    if (get_highest_layer(layer_state) != SCROLL_LAYER) return false;',
+    '',
+    '    if (timer_elapsed32(scroll_timer) >= SCROLL_SPEED) {',
+    '        scroll_timer = timer_read32();',
+    '        if (++scroll_offset >= TAPE_WIDTH) scroll_offset = 0;',
+    '    }',
+    '',
+    '    for (uint8_t r = 0; r < 4; r++) {',
+    '        for (uint8_t c = 0; c < 12; c++) {',
+    '            uint8_t  led = IRIS_GRID[r][c];',
+    '            uint16_t tc  = (scroll_offset + c) % TAPE_WIDTH;',
+    '            bool     lit = SCROLL_TAPE[r][tc];',
+    '            rgb_matrix_set_color(led,',
+    '                lit ? SCROLL_FG_R : SCROLL_BG_R,',
+    '                lit ? SCROLL_FG_G : SCROLL_BG_G,',
+    '                lit ? SCROLL_FG_B : SCROLL_BG_B);',
+    '        }',
+    '    }',
+    '    return false;',
+    '}',
+  ].join('\n');
+}
+
+// ── Component ──────────────────────────────────────────────────────────────────
+
+export default function LightingPanel({
+  device,
+  addDebugLog,
+  layer = 0,
+  perKeyColors,
+  onPerKeyColorsChange,
+  scrollSettings,
+  onScrollSettingsChange,
+}) {
+  const log = addDebugLog ?? (() => {});
+
+  // Global per-layer configs (local — read from keyboard, not persisted to profile)
+  const [configs, setConfigs] = useState(
+    Array.from({ length: NUM_LAYERS }, () => ({ ...DEFAULT_STATE }))
+  );
+  const [status, setStatus] = useState('');
+  const [dirty,  setDirty]  = useState(false);
+
+  // Sub-tab: 'global' | 'perkey' | 'scrolltext'
+  const [subTab, setSubTab] = useState('global');
+
+  // Per-key selected LED index
+  const [selectedLed, setSelectedLed] = useState(null);
+
+  // Modal visibility
+  const [showCModal,      setShowCModal]      = useState(false);
+  const [copied,          setCopied]           = useState(false);
+  const [showScrollModal, setShowScrollModal]  = useState(false);
+  const [scrollCopied,    setScrollCopied]     = useState(false);
+
+  // Scroll text animation
+  const [animOffset,   setAnimOffset]   = useState(0);
+  const [isAnimating,  setIsAnimating]  = useState(false);
+
+  // Scroll settings for the currently-viewed layer
+  const scrollSetting = scrollSettings?.[layer] ?? {
+    text: '', speed_ms: 150, fg_hsv: [0, 255, 100], bg_on: false, bg_hsv: [170, 255, 30], target_layer: layer,
+  };
+
+  const updateScrollSetting = (field, value) => {
+    if (!scrollSettings || !onScrollSettingsChange) return;
+    onScrollSettingsChange(scrollSettings.map((s, i) => i === layer ? { ...s, [field]: value } : s));
+  };
+
+  // ── Load / apply / save ─────────────────────────────────────────────────────
+
+  const load = useCallback(async () => {
+    if (!device) return;
+    try {
+      setStatus('Reading lighting…');
+      const current = await invoke('get_lighting');
+      log(`Lighting: effect=${current.effect} hue=${current.hue} sat=${current.sat} val=${current.val}`);
+      setConfigs(prev => prev.map((c, i) => i === 0 ? current : c));
+      setStatus('');
+    } catch (err) {
+      setStatus(`Load error: ${err}`);
+      log(`Lighting load error: ${err}`);
+    }
+  }, [device]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const applyToKeyboard = useCallback(async (cfg) => {
+    if (!device) return;
+    try { await invoke('set_lighting', { state: cfg }); }
+    catch (err) { log(`Lighting set error: ${err}`); }
+  }, [device]);
+
+  const handleChange = async (field, value) => {
+    const updated = { ...configs[layer], [field]: Number(value) };
+    setConfigs(prev => prev.map((c, i) => i === layer ? updated : c));
+    setDirty(true);
+    await applyToKeyboard(updated);
+  };
+
+  const handleSave = async () => {
+    if (!device) return;
+    try {
+      setStatus('Saving…');
+      await invoke('save_lighting');
+      setDirty(false);
+      setStatus('Saved to EEPROM');
+      setTimeout(() => setStatus(''), 2000);
+    } catch (err) { setStatus(`Save error: ${err}`); }
+  };
+
+  // ── Per-key helpers ─────────────────────────────────────────────────────────
+
+  const getKeyColor = (ledIdx) => {
+    const c = perKeyColors?.[layer]?.[ledIdx];
+    return c ? hsvToCss(...c) : '#1c1c1c';
+  };
+
+  const ensureDirectMode = useCallback(async () => {
+    const cfg = configs[layer];
+    if (cfg.effect !== 1) {
+      const direct = { ...cfg, effect: 1 };
+      await applyToKeyboard(direct);
+      setConfigs(prev => prev.map((c, i) => i === layer ? direct : c));
+    }
+  }, [configs, layer, applyToKeyboard]);
+
+  const handleLedColorChange = useCallback(async (newHsv) => {
+    if (selectedLed === null || !perKeyColors || !onPerKeyColorsChange) return;
+    const next = perKeyColors.map(l => [...l]);
+    next[layer][selectedLed] = newHsv;
+    onPerKeyColorsChange(next);
+    setDirty(true);
+    if (!device) return;
+    await ensureDirectMode();
+    const [h, s, v] = newHsv;
+    try { await invoke('fastset_led', { ledIndex: selectedLed, h, s, v }); }
+    catch (err) { log(`FastSet error: ${err}`); }
+  }, [selectedLed, layer, perKeyColors, onPerKeyColorsChange, device, ensureDirectMode]);
+
+  const handleHexPick = (hex) => handleLedColorChange(hexToHsv(hex));
+
+  const clearLedColor = async () => {
+    if (selectedLed === null || !perKeyColors || !onPerKeyColorsChange) return;
+    const next = perKeyColors.map(l => [...l]);
+    next[layer][selectedLed] = null;
+    onPerKeyColorsChange(next);
+    setDirty(true);
+    if (!device) return;
+    try { await invoke('fastset_led', { ledIndex: selectedLed, h: 0, s: 0, v: 0 }); }
+    catch (err) { log(`FastSet clear error: ${err}`); }
+  };
+
+  const applyAllPerKey = async () => {
+    if (!device || !perKeyColors) return;
+    try {
+      await ensureDirectMode();
+      const hsvList = perKeyColors[layer].map(c => c ?? [0, 0, 0]);
+      await invoke('apply_led_colors', { hsvList });
+      setStatus('Per-key colors applied');
+      setTimeout(() => setStatus(''), 1500);
+    } catch (err) { setStatus(`Error: ${err}`); }
+  };
+
+  const copyCode = () => {
+    navigator.clipboard.writeText(codeContent).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+
+  const safePerKey = perKeyColors ?? Array.from({ length: NUM_LAYERS }, () => Array(NUM_LEDS).fill(null));
+  const codeContent = useMemo(() => buildCCode(safePerKey), [perKeyColors]);
+
+  const scrollTape  = useMemo(() => buildScrollTape(scrollSetting.text || ' '), [scrollSettings, layer]);
+  const scrollCCode = useMemo(
+    () => buildScrollCCode(
+      scrollSetting.text,
+      scrollSetting.target_layer,
+      scrollSetting.speed_ms,
+      scrollSetting.fg_hsv,
+      scrollSetting.bg_on ? scrollSetting.bg_hsv : null,
+    ),
+    [scrollSettings, layer]
+  );
+
+  // Stop animation when leaving scroll text tab
+  useEffect(() => {
+    if (subTab !== 'scrolltext') setIsAnimating(false);
+  }, [subTab]);
+
+  // Reset offset when tape content changes (text edited)
+  useEffect(() => {
+    setAnimOffset(0);
+  }, [scrollTape]);
+
+  // Animation interval — ticks at the configured speed
+  useEffect(() => {
+    if (!isAnimating || subTab !== 'scrolltext') return;
+    const tapeLen = scrollTape[0]?.length ?? 1;
+    const id = setInterval(() => {
+      setAnimOffset(prev => (prev + 1) % tapeLen);
+    }, scrollSetting.speed_ms);
+    return () => clearInterval(id);
+  }, [isAnimating, subTab, scrollSetting.speed_ms, scrollTape]);
+
+  const copyScrollCode = () => {
+    navigator.clipboard.writeText(scrollCCode).then(() => {
+      setScrollCopied(true);
+      setTimeout(() => setScrollCopied(false), 1500);
+    });
+  };
+
+  // ── Render helpers ──────────────────────────────────────────────────────────
+
+  const renderHalfGrid = (grid) =>
+    <div className="pk-half-grid">
+      {grid.map((row, ri) => row.map((ledIdx, ci) =>
+        ledIdx === -1
+          ? <div key={`${ri}-${ci}-x`} className="pk-key pk-empty" />
+          : <div
+              key={ledIdx}
+              className={`pk-key${selectedLed === ledIdx ? ' pk-selected' : ''}`}
+              style={{ background: getKeyColor(ledIdx) }}
+              onClick={() => setSelectedLed(ledIdx)}
+              title={`LED ${ledIdx}`}
+            />
+      ))}
+    </div>;
+
+  // ── Early exit ──────────────────────────────────────────────────────────────
+
+  if (!device) {
+    return (
+      <div className="lighting-panel">
+        <h3>Lighting</h3>
+        <p className="lighting-hint">Connect the keyboard to control lighting.</p>
+      </div>
+    );
+  }
+
+  const cfg        = configs[layer];
+  const previewColor = hsvToCss(cfg.hue, cfg.sat, cfg.val);
+  const selColor   = selectedLed !== null ? (perKeyColors?.[layer]?.[selectedLed] ?? null) : null;
+
+  return (
+    <div className="lighting-panel">
+
+      {/* Header */}
+      <div className="lighting-header">
+        <h3>Lighting</h3>
+        <div className="lighting-header-right">
+          {status && (
+            <span className={`lighting-status${status.includes('error') || status.includes('Error') ? ' error' : ''}`}>
+              {status}
+            </span>
+          )}
+          <button onClick={load}>Reload</button>
+          <button className={dirty ? 'primary' : ''} onClick={handleSave} disabled={!dirty}>
+            Save to keyboard
+          </button>
+        </div>
+      </div>
+
+      <div className="lighting-body">
+
+        {/* Left column: type selector */}
+        <div className="lighting-type-col">
+          <div className="lighting-type-label">Type</div>
+          <button
+            className={`lighting-type-btn${subTab === 'global' ? ' active' : ''}`}
+            onClick={() => setSubTab('global')}
+          >Global</button>
+          <button
+            className={`lighting-type-btn${subTab === 'perkey' ? ' active' : ''}`}
+            onClick={() => setSubTab('perkey')}
+          >Per-Key</button>
+          <button
+            className={`lighting-type-btn${subTab === 'scrolltext' ? ' active' : ''}`}
+            onClick={() => setSubTab('scrolltext')}
+          >Scroll Text</button>
+        </div>
+
+        {/* Center column */}
+        <div className="lighting-center">
+
+          {subTab === 'global' ? (
+            <div className="lighting-controls">
+              <div className="lighting-row">
+                <label className="lighting-label">Effect</label>
+                <select
+                  className="lighting-select"
+                  value={cfg.effect}
+                  onChange={e => handleChange('effect', e.target.value)}
+                >
+                  {Object.entries(VIALRGB_EFFECTS).map(([id, name]) => (
+                    <option key={id} value={id}>{name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="lighting-row">
+                <label className="lighting-label">Hue</label>
+                <input type="range" min={0} max={255} value={cfg.hue}
+                  onChange={e => handleChange('hue', e.target.value)}
+                  className="lighting-slider hue-slider" />
+                <span className="lighting-val">{cfg.hue}</span>
+              </div>
+              <div className="lighting-row">
+                <label className="lighting-label">Saturation</label>
+                <input type="range" min={0} max={255} value={cfg.sat}
+                  onChange={e => handleChange('sat', e.target.value)}
+                  className="lighting-slider" />
+                <span className="lighting-val">{cfg.sat}</span>
+              </div>
+              <div className="lighting-row">
+                <label className="lighting-label">Brightness</label>
+                <input type="range" min={0} max={120} value={cfg.val}
+                  onChange={e => handleChange('val', e.target.value)}
+                  className="lighting-slider" />
+                <span className="lighting-val">{cfg.val}</span>
+              </div>
+              <div className="lighting-row">
+                <label className="lighting-label">Speed</label>
+                <input type="range" min={0} max={255} value={cfg.speed}
+                  onChange={e => handleChange('speed', e.target.value)}
+                  className="lighting-slider" />
+                <span className="lighting-val">{cfg.speed}</span>
+              </div>
+            </div>
+          ) : subTab === 'perkey' ? (
+            /* Per-Key tab */
+            <div className="pk-body">
+              <div className="pk-hint">
+                Click a key to paint its color on Layer {layer}. Keys without a color are off in Direct mode.
+              </div>
+              <div className="pk-keyboard">
+                {renderHalfGrid(IRIS_LED_GRID.left)}
+                <div className="pk-divider" />
+                {renderHalfGrid(IRIS_LED_GRID.right)}
+              </div>
+              <div className="pk-actions">
+                <button onClick={applyAllPerKey} disabled={!device}>
+                  Apply to keyboard
+                </button>
+                <button onClick={() => setShowCModal(true)}>
+                  Generate C code
+                </button>
+              </div>
+            </div>
+          ) : subTab === 'scrolltext' ? (
+            /* Scroll Text tab */
+            <div className="pk-body">
+              <div className="pk-hint">
+                Generates QMK C that scrolls text across the 12×4 main-key LED grid. Firmware codegen only — no live preview.
+              </div>
+
+              <div className="scroll-form">
+                <div className="scroll-row">
+                  <label className="scroll-label">Message</label>
+                  <input
+                    type="text"
+                    className="scroll-input"
+                    maxLength={30}
+                    value={scrollSetting.text}
+                    onChange={e => updateScrollSetting('text', e.target.value.toUpperCase())}
+                    placeholder="IRIS"
+                    spellCheck={false}
+                  />
+                </div>
+
+                <div className="scroll-row">
+                  <label className="scroll-label">Layer</label>
+                  <select
+                    className="lighting-select"
+                    value={scrollSetting.target_layer}
+                    onChange={e => updateScrollSetting('target_layer', Number(e.target.value))}
+                  >
+                    {Array.from({ length: NUM_LAYERS }, (_, i) => (
+                      <option key={i} value={i}>L{i}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="scroll-row">
+                  <label className="scroll-label">Speed</label>
+                  <input type="range" min={-500} max={-30} value={-scrollSetting.speed_ms}
+                    onChange={e => updateScrollSetting('speed_ms', -Number(e.target.value))}
+                    className="lighting-slider" />
+                  <span className="lighting-val">{scrollSetting.speed_ms}ms</span>
+                  <button
+                    className={`scroll-anim-btn${isAnimating ? ' active' : ''}`}
+                    onClick={() => setIsAnimating(a => !a)}
+                  >
+                    {isAnimating ? '⏸' : '▶'}
+                  </button>
+                </div>
+
+                <div className="scroll-row">
+                  <label className="scroll-label">FG color</label>
+                  <input type="color" className="pk-color-input"
+                    value={hsvToHex(...scrollSetting.fg_hsv)}
+                    onChange={e => updateScrollSetting('fg_hsv', hexToHsv(e.target.value))} />
+                  <div className="scroll-swatch" style={{ background: hsvToCss(...scrollSetting.fg_hsv) }} />
+                </div>
+
+                <div className="scroll-row scroll-row-check">
+                  <label className="scroll-label">BG color</label>
+                  <input type="checkbox" checked={scrollSetting.bg_on}
+                    onChange={e => updateScrollSetting('bg_on', e.target.checked)} />
+                  {scrollSetting.bg_on && (
+                    <>
+                      <input type="color" className="pk-color-input"
+                        value={hsvToHex(...scrollSetting.bg_hsv)}
+                        onChange={e => updateScrollSetting('bg_hsv', hexToHsv(e.target.value))} />
+                      <div className="scroll-swatch" style={{ background: hsvToCss(...scrollSetting.bg_hsv) }} />
+                    </>
+                  )}
+                  {!scrollSetting.bg_on && <span className="pk-picker-hint">off (keys unlit)</span>}
+                </div>
+              </div>
+
+              <div className="pk-actions">
+                <button onClick={() => setShowScrollModal(true)} disabled={!scrollSetting.text.trim()}>
+                  Generate C code
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        {/* Right column */}
+        {subTab === 'global' ? (
+          /* Global preview */
+          <div className="lighting-preview-panel">
+            <div className="lighting-preview-label">Preview</div>
+            <div className="lighting-preview">
+              <div className="lighting-swatch-large" style={{ background: previewColor }} />
+              <div className="lighting-preview-info">
+                <span>{VIALRGB_EFFECTS[cfg.effect] ?? `Effect ${cfg.effect}`}</span>
+                <span className="lighting-preview-css">{previewColor}</span>
+              </div>
+              <div className="lighting-keyboard-silhouette">
+                {Array.from({ length: 68 }).map((_, i) => (
+                  <div key={i} className="sil-key" style={{ background: previewColor }} />
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : subTab === 'perkey' ? (
+          /* Per-key color picker */
+          <div className="lighting-preview-panel pk-picker-panel">
+            <div className="lighting-preview-label">Key Color</div>
+            {selectedLed === null ? (
+              <div className="pk-no-sel">← Select a key on the grid</div>
+            ) : (
+              <div className="pk-picker">
+                <div className="pk-picker-info">LED {selectedLed}</div>
+
+                <div className="pk-picker-row">
+                  <input
+                    type="color"
+                    className="pk-color-input"
+                    value={selColor ? hsvToHex(...selColor) : '#000000'}
+                    onChange={e => handleHexPick(e.target.value)}
+                  />
+                  <button className="pk-clear-btn" onClick={clearLedColor}>
+                    Clear
+                  </button>
+                </div>
+
+                {selColor ? (
+                  <>
+                    <div className="lighting-row">
+                      <label className="lighting-label pk-label">Hue</label>
+                      <input type="range" min={0} max={255} value={selColor[0]}
+                        onChange={e => handleLedColorChange([Number(e.target.value), selColor[1], selColor[2]])}
+                        className="lighting-slider hue-slider" />
+                      <span className="lighting-val">{selColor[0]}</span>
+                    </div>
+                    <div className="lighting-row">
+                      <label className="lighting-label pk-label">Sat</label>
+                      <input type="range" min={0} max={255} value={selColor[1]}
+                        onChange={e => handleLedColorChange([selColor[0], Number(e.target.value), selColor[2]])}
+                        className="lighting-slider" />
+                      <span className="lighting-val">{selColor[1]}</span>
+                    </div>
+                    <div className="lighting-row">
+                      <label className="lighting-label pk-label">Bright</label>
+                      <input type="range" min={0} max={120} value={selColor[2]}
+                        onChange={e => handleLedColorChange([selColor[0], selColor[1], Number(e.target.value)])}
+                        className="lighting-slider" />
+                      <span className="lighting-val">{selColor[2]}</span>
+                    </div>
+                    <div className="pk-swatch" style={{ background: hsvToCss(...selColor) }} />
+                  </>
+                ) : (
+                  <div className="pk-picker-hint">Key is off — pick a color above to light it</div>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Scroll text right panel — tape preview */
+          <div className="lighting-preview-panel pk-picker-panel">
+            <div className="lighting-preview-label">Tape Preview</div>
+            <div className="scroll-preview-wrap">
+              <div className="scroll-kbd-preview">
+                {Array.from({ length: 4 }, (_, r) =>
+                  Array.from({ length: 12 }, (_, c) => {
+                    const tc = (animOffset + c) % scrollTape[r].length;
+                    const lit = scrollTape[r][tc];
+                    const bg = lit
+                      ? hsvToCss(...scrollSetting.fg_hsv)
+                      : (scrollSetting.bg_on ? hsvToCss(...scrollSetting.bg_hsv) : '#181818');
+                    return <div key={`${r}-${c}`} className="scroll-dot" style={{ background: bg }} />;
+                  })
+                )}
+              </div>
+              <div className="scroll-preview-hint scroll-tape-label">
+                Full tape ({scrollTape[0].length} cols — {scrollSetting.text.length} chars × 4 + 12 lead-in)
+              </div>
+              <div className="scroll-tape-strip">
+                {Array.from({ length: 4 }, (_, r) => (
+                  <div key={r} className="scroll-tape-row">
+                    {scrollTape[r].map((px, c) => (
+                      <div key={c} className="scroll-tape-px"
+                        style={{ background: px ? hsvToCss(...scrollSetting.fg_hsv) : (scrollSetting.bg_on ? hsvToCss(...scrollSetting.bg_hsv) : '#111') }} />
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Per-key Generate C modal */}
+      {showCModal && (
+        <div className="pk-modal-overlay" onClick={() => setShowCModal(false)}>
+          <div className="pk-modal" onClick={e => e.stopPropagation()}>
+            <div className="pk-modal-header">
+              <span>Generated C Code — Per-Key Colors</span>
+              <div className="pk-modal-btns">
+                <button onClick={copyCode}>{copied ? 'Copied!' : 'Copy'}</button>
+                <button onClick={() => setShowCModal(false)}>Close</button>
+              </div>
+            </div>
+            <pre className="pk-modal-code">{codeContent}</pre>
+            <div className="pk-modal-hint">
+              Paste into <code>keymap.c</code>. Add <code>#include "rgb_matrix.h"</code> at the top if needed.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Scroll text Generate C modal */}
+      {showScrollModal && (
+        <div className="pk-modal-overlay" onClick={() => setShowScrollModal(false)}>
+          <div className="pk-modal" onClick={e => e.stopPropagation()}>
+            <div className="pk-modal-header">
+              <span>Generated C Code — Scroll Text</span>
+              <div className="pk-modal-btns">
+                <button onClick={copyScrollCode}>{scrollCopied ? 'Copied!' : 'Copy'}</button>
+                <button onClick={() => setShowScrollModal(false)}>Close</button>
+              </div>
+            </div>
+            <pre className="pk-modal-code">{scrollCCode}</pre>
+            <div className="pk-modal-hint">
+              Paste into <code>keymap.c</code>. Ensure <code>RGB_MATRIX_ENABLE = yes</code> in <code>rules.mk</code>.
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

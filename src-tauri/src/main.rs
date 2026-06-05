@@ -15,7 +15,7 @@ mod dfu_flasher;
 
 use serde::{Deserialize, Serialize};
 use tauri::api::dialog::blocking::FileDialogBuilder;
-use usb_handler::{scan_devices, ViaKeyboard};
+use usb_handler::{scan_devices, ViaKeyboard, VialRGBState};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeviceInfo {
@@ -123,16 +123,69 @@ fn read_all_layers() -> Result<Vec<Vec<Vec<u16>>>, String> {
     (0..n).map(|l| kb.read_layer(l)).collect()
 }
 
+// ── VIALRGB lighting ──────────────────────────────────────────────────────────
+
+#[tauri::command]
+fn get_lighting() -> Result<VialRGBState, String> {
+    ViaKeyboard::open()?.get_lighting()
+}
+
+#[tauri::command]
+fn set_lighting(state: VialRGBState) -> Result<(), String> {
+    ViaKeyboard::open()?.set_lighting(&state)
+}
+
+#[tauri::command]
+fn save_lighting() -> Result<(), String> {
+    ViaKeyboard::open()?.save_lighting()
+}
+
+/// Set a single LED color via VIALRGB FASTSET. Keyboard must be in Direct mode (effect=1).
+#[tauri::command]
+fn fastset_led(led_index: u16, h: u8, s: u8, v: u8) -> Result<(), String> {
+    ViaKeyboard::open()?.set_led_colors(led_index, &[(h, s, v)])
+}
+
+/// Apply per-key colors to all 68 LEDs via VIALRGB FASTSET (9 LEDs per packet).
+/// `hsv_list` must be a flat list of [h, s, v] triples, one per LED index 0-67.
+/// Switch to Direct mode (effect=1) before calling this.
+#[tauri::command]
+fn apply_led_colors(hsv_list: Vec<[u8; 3]>) -> Result<(), String> {
+    let kb = ViaKeyboard::open()?;
+    let total = hsv_list.len().min(68);
+    let colors: Vec<(u8, u8, u8)> = hsv_list.iter()
+        .take(total)
+        .map(|c| (c[0], c[1], c[2]))
+        .collect();
+    let mut start = 0;
+    while start < total {
+        let end = (start + 9).min(total);
+        kb.set_led_colors(start as u16, &colors[start..end])?;
+        start = end;
+    }
+    Ok(())
+}
+
 // ── Profile file I/O ─────────────────────────────────────────────────────────
 // A "profile" is a complete snapshot of the keyboard's EEPROM state:
-// all layers and the full macro buffer. Enough to restore the keyboard exactly.
+// all layers, the full macro buffer, and per-layer lighting presets.
 
 #[derive(Serialize, Deserialize)]
 struct KeyboardProfile {
     version:  u32,
     keyboard: String,
-    layers:   Vec<Vec<Vec<u16>>>,   // [layer][row][col] keycodes
-    macros:   serde_json::Value,    // decoded action list per slot — human-readable
+    layers:   Vec<Vec<Vec<u16>>>,       // [layer][row][col] keycodes
+    macros:   serde_json::Value,         // decoded action list per slot — human-readable
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    lighting:  Option<Vec<VialRGBState>>,  // one preset per layer; absent in older profiles
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    tap_dance: Option<Vec<TapDanceEntry>>, // all VIAL tap-dance slots; absent in older profiles
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    combos:    Option<Vec<ComboEntry>>,    // all VIAL combo slots; absent in older profiles
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    lighting_perkey:  Option<serde_json::Value>, // [layer][led] = [h,s,v] or null
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    scroll_settings:  Option<serde_json::Value>, // one entry per layer
 }
 
 #[tauri::command]
@@ -350,6 +403,11 @@ fn main() {
             vial_set_combo_entry,
             vial_qmk_settings_get,
             vial_qmk_settings_set,
+            get_lighting,
+            set_lighting,
+            save_lighting,
+            fastset_led,
+            apply_led_colors,
             pick_firmware_file,
             check_dfu_device,
             list_dfu_devices,

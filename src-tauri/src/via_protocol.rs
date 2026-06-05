@@ -38,6 +38,9 @@ pub mod cmd {
     pub const DYNAMIC_KEYMAP_GET_KEYCODE: u8 = 0x04;
     pub const DYNAMIC_KEYMAP_SET_KEYCODE: u8 = 0x05;
     pub const DYNAMIC_KEYMAP_RESET: u8 = 0x06;
+    pub const LIGHTING_SET_VALUE: u8 = 0x07;
+    pub const LIGHTING_GET_VALUE: u8 = 0x08;
+    pub const LIGHTING_SAVE: u8 = 0x09;
     pub const EEPROM_RESET: u8 = 0x0A;
     pub const BOOTLOADER_JUMP: u8 = 0x0B;
     // Macro buffer commands (VIA protocol, quantum/via.h id_macro_*)
@@ -49,6 +52,76 @@ pub mod cmd {
     pub const DYNAMIC_KEYMAP_GET_LAYER_COUNT: u8 = 0x11;
     pub const DYNAMIC_KEYMAP_GET_BUFFER: u8 = 0x12;
     pub const DYNAMIC_KEYMAP_SET_BUFFER: u8 = 0x13;
+}
+
+// VIALRGB extension — RGB Matrix control via VIA lighting commands (0x07/0x08).
+//
+// The Iris-LM firmware uses VIALRGB_ENABLE (vialrgb.c). Lighting get/set goes
+// through VIA cmd 0x08/0x07 with VIALRGB sub-commands at data[1].
+//
+// Packet layout:
+//   Get mode: [0x08, GET_MODE, 0..] → resp [_, _, mode_lo, mode_hi, speed, hue, sat, val]
+//   Set mode: [0x07, SET_MODE, mode_lo, mode_hi, speed, hue, sat, val, ...]
+//   Save:     [0x09, 0..] → flushes to EEPROM
+//
+// Source: quantum/vialrgb.h, quantum/vialrgb.c, quantum/vialrgb_effects.inc
+pub mod vialrgb {
+    // Sub-commands for LIGHTING_GET_VALUE (data[1])
+    pub const GET_INFO:      u8 = 0x40; // resp: [_, _, version_lo, version_hi, max_brightness]
+    pub const GET_MODE:      u8 = 0x41; // resp: [_, _, mode_lo, mode_hi, speed, hue, sat, val]
+    pub const GET_SUPPORTED: u8 = 0x42; // resp: packed u16 list of supported effect IDs > gt
+
+    // Sub-commands for LIGHTING_SET_VALUE (data[1])
+    pub const SET_MODE:  u8 = 0x41; // [mode_lo, mode_hi, speed, hue, sat, val] at data[2..]
+    pub const FASTSET:   u8 = 0x42; // direct per-key: [idx_lo, idx_hi, count, h, s, v, ...]
+
+    // VIALRGB effect IDs (vialrgb_effects.inc, stable / never reordered).
+    // 0 = off; IDs match what firmware reports in GET_MODE / expects in SET_MODE.
+    pub const EFFECT_OFF:                    u16 = 0;
+    pub const EFFECT_DIRECT:                 u16 = 1;
+    pub const EFFECT_SOLID_COLOR:            u16 = 2;
+    pub const EFFECT_ALPHAS_MODS:            u16 = 3;
+    pub const EFFECT_GRADIENT_UP_DOWN:       u16 = 4;
+    pub const EFFECT_GRADIENT_LEFT_RIGHT:    u16 = 5;
+    pub const EFFECT_BREATHING:              u16 = 6;
+    pub const EFFECT_BAND_SAT:               u16 = 7;
+    pub const EFFECT_BAND_VAL:               u16 = 8;
+    pub const EFFECT_BAND_PINWHEEL_SAT:      u16 = 9;
+    pub const EFFECT_BAND_PINWHEEL_VAL:      u16 = 10;
+    pub const EFFECT_BAND_SPIRAL_SAT:        u16 = 11;
+    pub const EFFECT_BAND_SPIRAL_VAL:        u16 = 12;
+    pub const EFFECT_CYCLE_ALL:              u16 = 13;
+    pub const EFFECT_CYCLE_LEFT_RIGHT:       u16 = 14;
+    pub const EFFECT_CYCLE_UP_DOWN:          u16 = 15;
+    pub const EFFECT_RAINBOW_CHEVRON:        u16 = 16;
+    pub const EFFECT_CYCLE_OUT_IN:           u16 = 17;
+    pub const EFFECT_CYCLE_OUT_IN_DUAL:      u16 = 18;
+    pub const EFFECT_CYCLE_PINWHEEL:         u16 = 19;
+    pub const EFFECT_CYCLE_SPIRAL:           u16 = 20;
+    pub const EFFECT_DUAL_BEACON:            u16 = 21;
+    pub const EFFECT_RAINBOW_BEACON:         u16 = 22;
+    pub const EFFECT_RAINBOW_PINWHEELS:      u16 = 23;
+    pub const EFFECT_RAINDROPS:              u16 = 24;
+    pub const EFFECT_JELLYBEAN_RAINDROPS:    u16 = 25;
+    pub const EFFECT_HUE_BREATHING:          u16 = 26;
+    pub const EFFECT_HUE_PENDULUM:           u16 = 27;
+    pub const EFFECT_HUE_WAVE:              u16 = 28;
+    pub const EFFECT_TYPING_HEATMAP:         u16 = 29;
+    pub const EFFECT_DIGITAL_RAIN:           u16 = 30;
+    pub const EFFECT_SOLID_REACTIVE_SIMPLE:  u16 = 31;
+    pub const EFFECT_SOLID_REACTIVE:         u16 = 32;
+    pub const EFFECT_SOLID_REACTIVE_WIDE:    u16 = 33;
+    pub const EFFECT_SOLID_REACTIVE_MULTIWIDE: u16 = 34;
+    pub const EFFECT_SOLID_REACTIVE_CROSS:   u16 = 35;
+    pub const EFFECT_SOLID_REACTIVE_MULTICROSS: u16 = 36;
+    pub const EFFECT_SOLID_REACTIVE_NEXUS:   u16 = 37;
+    pub const EFFECT_SOLID_REACTIVE_MULTINEXUS: u16 = 38;
+    pub const EFFECT_SPLASH:                 u16 = 39;
+    pub const EFFECT_MULTISPLASH:            u16 = 40;
+    pub const EFFECT_SOLID_SPLASH:           u16 = 41;
+    pub const EFFECT_SOLID_MULTISPLASH:      u16 = 42;
+    pub const EFFECT_PIXEL_RAIN:             u16 = 43;
+    pub const EFFECT_PIXEL_FRACTAL:          u16 = 44;
 }
 
 // Sub-command IDs for GET_KEYBOARD_VALUE / SET_KEYBOARD_VALUE (via.h keyboard_value_id).
