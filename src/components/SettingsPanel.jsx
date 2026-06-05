@@ -1,4 +1,5 @@
 import React from 'react';
+import { invoke } from '@tauri-apps/api/tauri';
 
 export default function SettingsPanel({
   showDebugLog = false,
@@ -7,17 +8,43 @@ export default function SettingsPanel({
   onToggleVerboseDebug,
   showScanLog = false,
   onToggleShowScanLog,
+  perKeyColorsFilePath = '',
+  onPerKeyColorsFilePathChange,
 }) {
+  const handleBrowse = async () => {
+    try {
+      const path = await invoke('pick_c_output_file');
+      if (path) onPerKeyColorsFilePathChange?.(path);
+    } catch (err) {
+      console.error('File pick error:', err);
+    }
+  };
+
   return (
     <div className="settings-panel">
       <h3>SETTINGS</h3>
+
       <div className="settings-group">
-        <label>
-          <input type="checkbox" defaultChecked /> Auto-save changes
-        </label>
-        <label>
-          <input type="checkbox" defaultChecked /> Show advanced options
-        </label>
+        <div className="settings-group-label">Firmware C Output</div>
+        <div className="settings-desc">
+          Path where "Generate C code" saves <code>per_key_colors.c</code>.
+          Add <code>#include "per_key_colors.c"</code> to your <code>keymap.c</code> once.
+        </div>
+        <div className="settings-path-row">
+          <input
+            type="text"
+            className="settings-path-input"
+            value={perKeyColorsFilePath}
+            onChange={e => onPerKeyColorsFilePathChange?.(e.target.value)}
+            placeholder="C:\…\keymaps\vial\per_key_colors.c"
+            spellCheck={false}
+          />
+          <button onClick={handleBrowse}>Browse…</button>
+        </div>
+      </div>
+
+      <div className="settings-group">
+        <div className="settings-group-label">Debug</div>
         <label>
           <input
             type="checkbox"

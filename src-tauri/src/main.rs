@@ -78,6 +78,24 @@ fn pick_firmware_file() -> Result<Option<String>, String> {
     Ok(path.map(|p| p.to_string_lossy().into_owned()))
 }
 
+/// Open a save-file dialog pre-filled with "per_key_colors.c".
+/// Returns the chosen path, or None if cancelled.
+#[tauri::command]
+fn pick_c_output_file() -> Result<Option<String>, String> {
+    let path = FileDialogBuilder::new()
+        .set_title("Choose C output file location")
+        .add_filter("C Source File", &["c"])
+        .set_file_name("per_key_colors.c")
+        .save_file();
+    Ok(path.map(|p| p.to_string_lossy().into_owned()))
+}
+
+/// Write arbitrary text content to an absolute file path.
+#[tauri::command]
+fn write_text_file(path: String, content: String) -> Result<(), String> {
+    std::fs::write(&path, content).map_err(|e| format!("Write error: {e}"))
+}
+
 /// Check whether a DFU bootloader device is visible on USB (0483:DF11).
 #[tauri::command]
 fn check_dfu_device() -> Result<bool, String> {
@@ -186,6 +204,14 @@ struct KeyboardProfile {
     lighting_perkey:  Option<serde_json::Value>, // [layer][led] = [h,s,v] or null
     #[serde(default, skip_serializing_if = "Option::is_none")]
     scroll_settings:  Option<serde_json::Value>, // one entry per layer
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    tap_dance_keys:   Option<serde_json::Value>, // { [layer]: { [keyId]: { on_tap, on_hold, ... } } }
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    layer_count:      Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    layer_names:      Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    custom_labels:    Option<serde_json::Value>,
 }
 
 #[tauri::command]
@@ -409,6 +435,8 @@ fn main() {
             fastset_led,
             apply_led_colors,
             pick_firmware_file,
+            pick_c_output_file,
+            write_text_file,
             check_dfu_device,
             list_dfu_devices,
         ])
