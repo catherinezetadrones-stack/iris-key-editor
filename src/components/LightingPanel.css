@@ -257,6 +257,59 @@
 }
 
 
+/* ── Compact mode (right panel in editor tab) ────────────────────────────── */
+
+.lighting-compact .lighting-body {
+  flex-direction: column;
+}
+
+.lighting-compact .lighting-type-col {
+  flex-direction: row;
+  flex-wrap: wrap;
+  width: 100%;
+  padding: 8px 10px;
+  gap: 4px;
+  border-right: none;
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.lighting-compact .lighting-type-btn {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.68rem;
+  padding: 5px 4px;
+  border-radius: 6px;
+}
+
+.lighting-compact .lighting-center {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+.lighting-compact .lighting-controls {
+  padding: 10px 12px;
+  gap: 10px;
+}
+
+.lighting-compact .lighting-label {
+  width: 70px;
+  font-size: 0.68rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lighting-compact .lighting-val {
+  width: 24px;
+  font-size: 0.68rem;
+}
+
+.lighting-compact .lighting-preview-panel {
+  display: none;
+}
+
 /* ── Per-key tab body ─────────────────────────────────────────────────────── */
 
 .pk-body {
