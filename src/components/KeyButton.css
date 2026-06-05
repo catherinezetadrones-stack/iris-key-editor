@@ -1,12 +1,12 @@
 /* KeyButton.css */
 
 .key-button {
-  width: 56px;
-  height: 56px;
+  width: 64px;
+  height: 64px;
   padding: 0;
   background: linear-gradient(135deg, #1a1f3a 0%, #0f1428 100%);
   border: 1px solid var(--border);
-  border-radius: 2px;
+  border-radius: 8px;
   color: var(--text-primary);
   font-family: var(--font-mono);
   font-size: 0.7rem;

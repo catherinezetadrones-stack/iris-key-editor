@@ -67,11 +67,41 @@
 }
 
 .combo-slots-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   font-size: 0.65rem;
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 1px;
   padding-bottom: 6px;
+}
+
+.combo-slots-count {
+  font-size: 0.6rem;
+  opacity: 0.6;
+  letter-spacing: 0;
+}
+
+.combo-add-btn {
+  margin-top: 4px;
+  padding: 4px 6px;
+  font-size: 0.7rem;
+  color: var(--accent-alt);
+  border-color: var(--accent-alt);
+  opacity: 0.7;
+  text-align: left;
+  letter-spacing: 0;
+}
+
+.combo-add-btn:hover:not(:disabled) {
+  opacity: 1;
+  background: rgba(0, 255, 136, 0.08);
+}
+
+.combo-add-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
 .combo-slot-btn {

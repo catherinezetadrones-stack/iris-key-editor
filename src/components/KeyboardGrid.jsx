@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import KeyButton from './KeyButton';
 import { HALVES, decodeQuantum, getSecondary } from '../keyboardLayout';
 import './KeyboardGrid.css';
 
-function labelFor(key, keymap) {
+function labelFor(key, keymap, customLabels) {
+  if (customLabels?.[key.id]) return customLabels[key.id];
   const code = keymap?.[key.viaRow]?.[key.viaCol];
   if (code === undefined || code === null) return key.label;
   const named = decodeQuantum(code);
@@ -12,13 +13,9 @@ function labelFor(key, keymap) {
   return `0x${code.toString(16).padStart(4, '0')}`;
 }
 
-export default function KeyboardGrid({ keymap, currentLayer, selectedKey, onKeySelect, onKeyRightClick }) {
+export default function KeyboardGrid({ keymap, currentLayer, selectedKey, onKeySelect, onKeyRightClick, keyLedColors, keyBadges, customLabels }) {
   const handleKeyClick = (viaRow, viaCol) => {
     onKeySelect?.({ row: viaRow, col: viaCol });
-  };
-
-  const handleDeselect = () => {
-    onKeySelect?.(null);
   };
 
   const handleKeyRightClick = (e, viaRow, viaCol) => {
@@ -44,11 +41,12 @@ export default function KeyboardGrid({ keymap, currentLayer, selectedKey, onKeyS
             onContextMenu={(e) => handleKeyRightClick(e, key.viaRow, key.viaCol)}
           >
             <KeyButton
-              keyName={labelFor(key, keymap)}
-              subLabel={getSecondary(keymap?.[key.viaRow]?.[key.viaCol])}
+              keyName={labelFor(key, keymap, customLabels)}
+              subLabel={keyBadges?.get(key.id) ?? getSecondary(keymap?.[key.viaRow]?.[key.viaCol])}
               isThumb={key.thumb}
               isSelected={selectedKey?.row === key.viaRow && selectedKey?.col === key.viaCol}
               onClick={() => handleKeyClick(key.viaRow, key.viaCol)}
+              glowColor={keyLedColors?.get(key.id)}
             />
           </div>
         ))}
@@ -58,17 +56,6 @@ export default function KeyboardGrid({ keymap, currentLayer, selectedKey, onKeyS
 
   return (
     <div className="keyboard-grid" onContextMenu={(e) => e.preventDefault()}>
-      <div className="grid-info">
-        <h2>Layer {currentLayer}</h2>
-        {selectedKey ? (
-          <button className="deselect-btn" onClick={handleDeselect}>
-            Deselect key
-          </button>
-        ) : (
-          <span className="info-text">Click keys to remap</span>
-        )}
-      </div>
-
       <div className="keyboard">
         {renderHalf('left')}
         <div className="keyboard-divider" />

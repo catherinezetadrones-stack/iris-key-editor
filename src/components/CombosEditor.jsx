@@ -128,6 +128,7 @@ export default function CombosEditor({ device }) {
   const [showUnlock, setShowUnlock] = useState(false);
   const [activeField, setActiveField] = useState(DEFAULT_FIELD);
   const [pickerRequest, setPickerRequest] = useState(null);
+  const [visibleCount, setVisibleCount]   = useState(1);
 
   const load = useCallback(async () => {
     if (!device) return;
@@ -141,6 +142,8 @@ export default function CombosEditor({ device }) {
       setStatus('Loading…');
       const data = await invoke('vial_get_all_combos', { count: vs.combo_count });
       setEntries(data);
+      const nonEmpty = data.filter(e => e.output !== 0 || e.keys.some(k => k !== 0)).length;
+      setVisibleCount(Math.max(nonEmpty, 1));
       setSelected(0);
       setActiveField(DEFAULT_FIELD);
       setPickerRequest({ code: data[0]?.keys[0] ?? 0 });
@@ -249,8 +252,11 @@ export default function CombosEditor({ device }) {
       <div className="combo-body">
         {/* Slot list */}
         <div className="combo-slots">
-          <div className="combo-slots-label">Slot</div>
-          {entries.map((_, i) => (
+          <div className="combo-slots-label">
+            Slot
+            <span className="combo-slots-count">{visibleCount}/{vialStatus.combo_count}</span>
+          </div>
+          {entries.slice(0, visibleCount).map((_, i) => (
             <button
               key={i}
               className={`combo-slot-btn${selected === i ? ' active' : ''}`}
@@ -266,6 +272,21 @@ export default function CombosEditor({ device }) {
               C({i})
             </button>
           ))}
+          <button
+            className="combo-add-btn"
+            onClick={() => {
+              const next = visibleCount;
+              setVisibleCount(n => n + 1);
+              setSelected(next);
+              setDirty(false);
+              setActiveField(DEFAULT_FIELD);
+              setPickerRequest({ code: 0 });
+            }}
+            disabled={visibleCount >= vialStatus.combo_count}
+            title={visibleCount >= vialStatus.combo_count ? `Firmware limit: ${vialStatus.combo_count} combos` : 'Add combo'}
+          >
+            + Add
+          </button>
         </div>
 
         {/* Entry form */}

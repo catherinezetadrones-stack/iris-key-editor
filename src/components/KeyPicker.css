@@ -1,7 +1,7 @@
 .key-picker {
-  height: 240px;
-  flex-shrink: 0;
-  border-top: 2px solid var(--accent);
+  flex: 1;
+  min-height: 0;
+  border-top: 1px solid var(--border);
   background: var(--bg-secondary);
   display: flex;
   flex-direction: column;
@@ -134,8 +134,15 @@
   gap: 3px;
   padding: 8px;
   overflow-y: auto;
+  overflow-x: hidden;
   align-content: flex-start;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
 }
+
+.key-picker-keys::-webkit-scrollbar { width: 4px; }
+.key-picker-keys::-webkit-scrollbar-track { background: transparent; }
+.key-picker-keys::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
 .picker-key {
   padding: 5px 8px;

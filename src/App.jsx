@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/tauri';
-import { decodeQuantum } from './keyboardLayout';
+import { decodeQuantum, KEY_TO_LED, HALVES } from './keyboardLayout';
 import { parseBuffer, serializeBuffer } from './macroCodec';
 import './App.css';
 
@@ -11,6 +11,7 @@ import DebugConsole from './components/DebugConsole';
 import KeyTest from './components/KeyTest';
 import KeyPicker from './components/KeyPicker';
 import TapDanceEditor from './components/TapDanceEditor';
+import TapDanceKeyPanel from './components/TapDanceKeyPanel';
 import CombosEditor from './components/CombosEditor';
 import FirmwarePanel from './components/FirmwarePanel';
 import LightingPanel from './components/LightingPanel';
@@ -30,12 +31,46 @@ export default function App() {
   const [copiedLayer, setCopiedLayer] = useState(null); // cached keymap for paste
   const [showClearModal, setShowClearModal] = useState(false);
   const [showScanLog, setShowScanLog] = useState(false);
+  const [perKeyColorsFilePath, setPerKeyColorsFilePath] = useState(
+    () => localStorage.getItem('perKeyColorsFilePath') || ''
+  );
+  const updatePerKeyColorsFilePath = (path) => {
+    localStorage.setItem('perKeyColorsFilePath', path);
+    setPerKeyColorsFilePath(path);
+  };
+  const [editorMode, setEditorMode] = useState('keys'); // 'keys' | 'lighting' | 'tap-dance'
+  const [layerCount, setLayerCount] = useState(4);
+  const [layerNames, setLayerNames] = useState(() => ['Layer 0', 'Layer 1', 'Layer 2', 'Layer 3']);
+  const [showLayerDropdown, setShowLayerDropdown] = useState(false);
+  const [editingLayerIdx, setEditingLayerIdx] = useState(null);
+  const [editingLayerName, setEditingLayerName] = useState('');
+  const [isEditingLayerName, setIsEditingLayerName] = useState(false);
+  const [editLayerNameText, setEditLayerNameText] = useState('');
 
   const verboseRef = useRef(false);
   useEffect(() => { verboseRef.current = verboseDebug; }, [verboseDebug]);
 
   const scanLogRef = useRef(false);
   useEffect(() => { scanLogRef.current = showScanLog; }, [showScanLog]);
+
+  // Firmware-reported layer count (from keyboard at connect time). Layers at or
+  // beyond this index cannot be read/written to the firmware and must be cached locally.
+  const firmwareLayerCountRef = useRef(4);
+
+  // Local keycode cache for ALL layers. Firmware layers are written through here
+  // on load; layers beyond firmware capacity live here only.
+  const allKeymapsRef = useRef([]);
+
+  const layerDropdownRef = useRef(null);
+  useEffect(() => {
+    if (!showLayerDropdown) return;
+    const onMouseDown = (e) => {
+      if (layerDropdownRef.current && !layerDropdownRef.current.contains(e.target))
+        setShowLayerDropdown(false);
+    };
+    document.addEventListener('mousedown', onMouseDown);
+    return () => document.removeEventListener('mousedown', onMouseDown);
+  }, [showLayerDropdown]);
 
   const addDebugLog = useCallback((message) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -49,9 +84,15 @@ export default function App() {
   const loadKeymap = useCallback(
     async (layer) => {
       try {
-        const result = await invoke('read_keymap', { layer });
+        let result;
+        if (layer < firmwareLayerCountRef.current) {
+          result = await invoke('read_keymap', { layer });
+          allKeymapsRef.current[layer] = result;
+        } else {
+          result = allKeymapsRef.current[layer] ?? Array.from({ length: 10 }, () => Array(6).fill(0x0001));
+        }
         setKeymap(result);
-        addDebugLog(`Loaded layer ${layer}`);
+        addDebugLog(`Loaded layer ${layer}${layer >= firmwareLayerCountRef.current ? ' (local — beyond firmware capacity)' : ''}`);
         logVerbose(`  └─ ${result.length} rows × ${result[0]?.length ?? 0} cols`);
       } catch (err) {
         addDebugLog(`Keymap load error: ${err}`);
@@ -83,7 +124,16 @@ export default function App() {
           setSelectedDevice(result[0]);
           addDebugLog(`Found ${result.length} device(s): ${result[0].name}`);
           logVerbose(`  └─ port: ${result[0].port ?? 'unknown'}`);
+          // Query how many layers the firmware actually supports
+          try {
+            const n = await invoke('get_layer_count');
+            firmwareLayerCountRef.current = n;
+            addDebugLog(`Firmware layer count: ${n}`);
+          } catch {
+            firmwareLayerCountRef.current = 4; // safe fallback
+          }
           await loadKeymap(currentLayer);
+          applyPerKeyColors(currentLayer, lightingPerKeyColors[currentLayer]);
         }
       } catch (err) {
         if (!cancelled) addDebugLog(`Device scan error: ${err}`);
@@ -103,23 +153,68 @@ export default function App() {
       addDebugLog('No device selected');
       return;
     }
+    const withinFirmware = currentLayer < firmwareLayerCountRef.current;
     try {
-      await invoke('write_key', { layer: currentLayer, row, col, keycode: newKeycode });
+      if (withinFirmware) {
+        await invoke('write_key', { layer: currentLayer, row, col, keycode: newKeycode });
+      }
       setKeymap((prev) =>
         prev.map((r, i) => (i === row ? r.map((k, j) => (j === col ? newKeycode : k)) : r))
       );
-      addDebugLog(`Key updated [${row},${col}] -> 0x${newKeycode.toString(16).padStart(4, '0')}`);
+      // Keep local cache in sync for all layers
+      if (allKeymapsRef.current[currentLayer]) {
+        allKeymapsRef.current[currentLayer] = allKeymapsRef.current[currentLayer].map(
+          (r, i) => (i === row ? r.map((k, j) => (j === col ? newKeycode : k)) : r)
+        );
+      }
+      addDebugLog(`Key updated [${row},${col}] -> 0x${newKeycode.toString(16).padStart(4, '0')}${withinFirmware ? '' : ' (local only)'}`);
       logVerbose(`  └─ decoded: ${decodeQuantum(newKeycode) ?? 'unknown'} | layer ${currentLayer}`);
     } catch (err) {
       addDebugLog(`Key write error: ${err}`);
     }
   };
 
+  const applyPerKeyColors = useCallback(async (layer, colors) => {
+    if (!colors) return;
+    const entries = colors.map((hsv, i) => hsv ? { i, hsv } : null).filter(Boolean);
+    if (!entries.length) return;
+    try { await invoke('set_lighting', { state: { effect: 1, speed: 128, hue: 0, sat: 255, val: 100 } }); }
+    catch { /* keyboard may not be ready yet */ }
+    await Promise.all(
+      entries.map(({ i, hsv }) =>
+        invoke('fastset_led', { ledIndex: i, h: hsv[0], s: hsv[1], v: hsv[2] }).catch(() => {})
+      )
+    );
+  }, []);
+
   const handleLayerChange = async (newLayer) => {
     logVerbose(`Layer: ${currentLayer} → ${newLayer}`);
     setCurrentLayer(newLayer);
     setSelectedKey(null);
     await loadKeymap(newLayer);
+    if (selectedDevice) {
+      applyPerKeyColors(newLayer, lightingPerKeyColors[newLayer]);
+    }
+  };
+
+  const handleAddLayer = () => {
+    if (layerCount >= 16) return;
+    const newIdx = layerCount;
+    // Pre-populate local cache with KC_TRNS so the layer isn't blank on first visit
+    allKeymapsRef.current[newIdx] = Array.from({ length: 10 }, () => Array(6).fill(0x0001));
+    setLayerCount(n => n + 1);
+    setLayerNames(names => [...names, `Layer ${newIdx}`]);
+    setLightingPerKeyColors(prev => [...prev, Array(68).fill(null)]);
+    setScrollSettings(prev => [...prev, { text: '', speed_ms: 150, fg_hsv: [0, 255, 100], bg_on: false, bg_hsv: [170, 255, 30], target_layer: newIdx }]);
+    addDebugLog(`Layer ${newIdx} added (local — write to firmware after updating firmware layer count)`);
+  };
+
+  const commitLayerRename = () => {
+    if (editingLayerIdx !== null) {
+      const trimmed = editingLayerName.trim() || `Layer ${editingLayerIdx}`;
+      setLayerNames(names => names.map((n, i) => i === editingLayerIdx ? trimmed : n));
+      setEditingLayerIdx(null);
+    }
   };
 
   const handleKeySelect = (key) => {
@@ -151,9 +246,12 @@ export default function App() {
   const handlePasteLayer = async () => {
     if (!copiedLayer || !selectedDevice) return;
     try {
-      await invoke('write_layer', { layer: currentLayer, keymap: copiedLayer });
+      allKeymapsRef.current[currentLayer] = copiedLayer;
+      if (currentLayer < firmwareLayerCountRef.current) {
+        await invoke('write_layer', { layer: currentLayer, keymap: copiedLayer });
+      }
       await loadKeymap(currentLayer);
-      addDebugLog(`Pasted to layer ${currentLayer}`);
+      addDebugLog(`Pasted to layer ${currentLayer}${currentLayer >= firmwareLayerCountRef.current ? ' (local only)' : ''}`);
     } catch (err) {
       addDebugLog(`Paste error: ${err}`);
     }
@@ -168,9 +266,12 @@ export default function App() {
     setShowClearModal(false);
     const blank = Array.from({ length: 10 }, () => Array(6).fill(0x0001)); // KC_TRNS
     try {
-      await invoke('write_layer', { layer: currentLayer, keymap: blank });
+      allKeymapsRef.current[currentLayer] = blank;
+      if (currentLayer < firmwareLayerCountRef.current) {
+        await invoke('write_layer', { layer: currentLayer, keymap: blank });
+      }
       await loadKeymap(currentLayer);
-      addDebugLog(`Layer ${currentLayer} cleared`);
+      addDebugLog(`Layer ${currentLayer} cleared${currentLayer >= firmwareLayerCountRef.current ? ' (local only)' : ''}`);
     } catch (err) {
       addDebugLog(`Clear error: ${err}`);
     }
@@ -194,7 +295,13 @@ export default function App() {
   // Macros are decoded from raw bytes into a human-readable action list so the
   // saved JSON is inspectable and not just an opaque array of numbers.
   const buildProfile = async () => {
-    const layers = await invoke('read_all_layers');
+    // Read however many layers the firmware supports, then append any locally-cached
+    // extra layers so that layers beyond firmware capacity are preserved in the export.
+    const firmwareLayers = await invoke('read_all_layers');
+    const layers = [...firmwareLayers];
+    for (let l = firmwareLayers.length; l < layerCount; l++) {
+      layers.push(allKeymapsRef.current[l] ?? Array.from({ length: 10 }, () => Array(6).fill(0x0001)));
+    }
     let macros = [];
     try {
       const info    = await invoke('get_macro_info');
@@ -206,7 +313,7 @@ export default function App() {
     let lighting = null;
     try {
       const current = await invoke('get_lighting');
-      lighting = Array.from({ length: 4 }, () => ({ ...current }));
+      lighting = Array.from({ length: layerCount }, () => ({ ...current }));
     } catch {
       addDebugLog('Lighting unavailable — exporting without');
     }
@@ -227,7 +334,10 @@ export default function App() {
     } catch (err) {
       addDebugLog(`Tap dance/combos unavailable — exporting without: ${err}`);
     }
-    return { version: 1, keyboard: 'iris-lm', layers, macros, lighting, tap_dance, combos, lighting_perkey: lightingPerKeyColors, scroll_settings: scrollSettings };
+    return { version: 2, keyboard: 'iris-lm', layers, macros, lighting, tap_dance, combos,
+      lighting_perkey: lightingPerKeyColors, scroll_settings: scrollSettings,
+      layer_count: layerCount, layer_names: layerNames,
+      tap_dance_keys: tapDanceKeys, custom_labels: customLabels };
   };
 
   // Save a profile object to a user-chosen file. Returns true if saved.
@@ -258,15 +368,58 @@ export default function App() {
     () => Array.from({ length: 4 }, (_, i) => ({ text: '', speed_ms: 150, fg_hsv: [0, 255, 100], bg_on: false, bg_hsv: [170, 255, 30], target_layer: i }))
   );
 
+  const [tapDanceKeys, setTapDanceKeys] = useState({});
+  const [customLabels, setCustomLabels]   = useState({});
+
+  // Computed per-key glow colors for the keyboard grid in lighting editor mode
+  const keyLedColors = useMemo(() => {
+    if (activeTab !== 'editor') return null;
+    const colors = lightingPerKeyColors[currentLayer];
+    if (!colors) return null;
+    const map = new Map();
+    KEY_TO_LED.forEach((ledIdx, keyId) => {
+      const hsv = colors[ledIdx];
+      if (!hsv) return;
+      const [h, s, v] = hsv;
+      const hDeg = Math.round((h / 255) * 360);
+      const sP = Math.round((s / 255) * 100);
+      const lP = Math.round((v / 255) * 50);
+      map.set(keyId, `hsl(${hDeg}, ${sP}%, ${lP}%)`);
+    });
+    return map.size > 0 ? map : null;
+  }, [activeTab, currentLayer, lightingPerKeyColors]);
+
+  const selectedKeyObj = useMemo(() => {
+    if (!selectedKey) return null;
+    return [...HALVES.left, ...HALVES.right].find(
+      k => k.viaRow === selectedKey.row && k.viaCol === selectedKey.col
+    ) ?? null;
+  }, [selectedKey]);
+
+  const tapDanceBadges = useMemo(() => {
+    if (activeTab !== 'editor') return null;
+    const currentLayerTD = tapDanceKeys[currentLayer] ?? {};
+    const map = new Map();
+    Object.entries(currentLayerTD).forEach(([keyId, e]) => {
+      if (e.on_tap || e.on_hold || e.on_double_tap || e.on_tap_hold) map.set(keyId, 'TD');
+    });
+    return map.size > 0 ? map : null;
+  }, [activeTab, currentLayer, tapDanceKeys]);
+
   const handleImportKeymap = async () => {
     if (!selectedDevice) return;
     try {
       const profile = await invoke('load_profile');
       if (!profile) { addDebugLog('Import cancelled'); return; }
-      if (profile.version !== 1) { addDebugLog(`Unknown profile version ${profile.version}`); return; }
-      addDebugLog(`Importing ${profile.layers.length} layers...`);
+      if (profile.version !== 1 && profile.version !== 2) { addDebugLog(`Unknown profile version ${profile.version}`); return; }
+      addDebugLog(`Importing ${profile.layers.length} layers (firmware supports ${firmwareLayerCountRef.current})...`);
       for (let l = 0; l < profile.layers.length; l++) {
-        await invoke('write_layer', { layer: l, keymap: profile.layers[l] });
+        allKeymapsRef.current[l] = profile.layers[l]; // cache all layers locally
+        if (l < firmwareLayerCountRef.current) {
+          await invoke('write_layer', { layer: l, keymap: profile.layers[l] });
+        } else {
+          addDebugLog(`  Layer ${l} stored locally (beyond firmware capacity)`);
+        }
       }
       const macroSlots = Array.isArray(profile.macros) ? profile.macros.length : 0;
       addDebugLog(`Profile macros: ${macroSlots} slots found`);
@@ -342,6 +495,22 @@ export default function App() {
         setScrollSettings(profile.scroll_settings);
         addDebugLog('Scroll settings restored');
       }
+      if (typeof profile.layer_count === 'number' && profile.layer_count > 0) {
+        setLayerCount(profile.layer_count);
+        addDebugLog(`Layer count restored: ${profile.layer_count}`);
+      }
+      if (Array.isArray(profile.layer_names) && profile.layer_names.length > 0) {
+        setLayerNames(profile.layer_names);
+        addDebugLog('Layer names restored');
+      }
+      if (profile.tap_dance_keys && typeof profile.tap_dance_keys === 'object') {
+        setTapDanceKeys(profile.tap_dance_keys);
+        addDebugLog('Tap dance key config restored');
+      }
+      if (profile.custom_labels && typeof profile.custom_labels === 'object') {
+        setCustomLabels(profile.custom_labels);
+        addDebugLog('Custom labels restored');
+      }
       await loadKeymap(currentLayer);
       addDebugLog('Profile imported');
     } catch (err) {
@@ -378,15 +547,51 @@ export default function App() {
         <div className="header-layers">
           <span className="header-layers-label">LAYER</span>
           <div className="header-layer-btns">
-            {Array.from({ length: 4 }).map((_, idx) => (
+            {Array.from({ length: Math.min(layerCount, 4) }).map((_, idx) => (
               <button
                 key={idx}
                 className={`header-layer-btn${currentLayer === idx ? ' active' : ''}`}
                 onClick={() => handleLayerChange(idx)}
+                title={layerNames[idx]}
               >
                 {idx}
               </button>
             ))}
+
+            {layerCount > 4 && (
+              <div className="header-layer-dropdown-wrap" ref={layerDropdownRef}>
+                <button
+                  className={`header-layer-btn${currentLayer >= 4 ? ' active' : ''}`}
+                  onClick={() => setShowLayerDropdown(v => !v)}
+                  title="More layers"
+                >
+                  {currentLayer >= 4 ? currentLayer : '▾'}
+                </button>
+                {showLayerDropdown && (
+                  <div className="header-layer-dropdown">
+                    {Array.from({ length: layerCount - 4 }, (_, i) => i + 4).map(idx => (
+                      <button
+                        key={idx}
+                        className={`header-layer-dropdown-item${currentLayer === idx ? ' active' : ''}`}
+                        onClick={() => { handleLayerChange(idx); setShowLayerDropdown(false); }}
+                      >
+                        <span className="dropdown-layer-num">{idx}</span>
+                        <span>{layerNames[idx]}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <button
+              className="header-layer-btn header-layer-add"
+              onClick={handleAddLayer}
+              disabled={layerCount >= 16}
+              title={layerCount >= 16 ? 'Maximum 16 layers (QMK limit)' : 'Add layer'}
+            >
+              +
+            </button>
           </div>
         </div>
 
@@ -427,7 +632,6 @@ export default function App() {
             {activeTab === 'editor' && (
               <div className="layer-toolbar">
                 <div className="layer-toolbar-group">
-                  <span className="layer-toolbar-label">Layer {currentLayer}</span>
                   <button onClick={handleCopyLayer} disabled={!selectedDevice || !keymap.length} title="Copy this layer's keycodes into clipboard">Copy</button>
                   <button onClick={handlePasteLayer} disabled={!selectedDevice || !copiedLayer} title="Paste copied layer keycodes here">Paste</button>
                   <button onClick={handleClearLayer} disabled={!selectedDevice} title="Set all keys to transparent (KC_TRNS)">Clear</button>
@@ -439,16 +643,130 @@ export default function App() {
               </div>
             )}
 
-            <div className="tab-content">
+            <div className={`tab-content${activeTab === 'editor' ? ' tab-content-editor' : ''}`}>
               {activeTab === 'editor' && (
-                <KeyboardGrid
-                  keymap={keymap}
-                  currentLayer={currentLayer}
-                  selectedKey={selectedKey}
-                  onKeySelect={handleKeySelect}
-                  onKeyChange={handleKeyChange}
-                  onKeyRightClick={handlePickerRequest}
-                />
+                <div className="editor-content">
+                  <div className="editor-body">
+                    <div className="editor-center">
+                      <div className="keyboard-header">
+                        {isEditingLayerName ? (
+                          <input
+                            autoFocus
+                            className="layer-name-input"
+                            value={editLayerNameText}
+                            onChange={e => setEditLayerNameText(e.target.value)}
+                            onBlur={() => {
+                              const t = editLayerNameText.trim();
+                              if (t) setLayerNames(prev => prev.map((n, i) => i === currentLayer ? t : n));
+                              setIsEditingLayerName(false);
+                            }}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') e.currentTarget.blur();
+                              if (e.key === 'Escape') setIsEditingLayerName(false);
+                            }}
+                          />
+                        ) : (
+                          <h2 className="layer-name-heading" onClick={() => { setEditLayerNameText(layerNames[currentLayer]); setIsEditingLayerName(true); }} title="Click to rename">
+                            {layerNames[currentLayer]}
+                          </h2>
+                        )}
+                        <div className="editor-mode-pill">
+                          {[['keys', 'Keys'], ['lighting', 'Lighting'], ['tap-dance', 'Tap Dance']].map(([mode, label]) => (
+                            <button key={mode} className={`pill-btn${editorMode === mode ? ' active' : ''}`}
+                              onClick={() => setEditorMode(mode)}>
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                        {selectedKey ? (
+                          <button className="deselect-btn" onClick={() => handleKeySelect(null)}>Deselect</button>
+                        ) : (
+                          <span className="info-text">Click a key</span>
+                        )}
+                      </div>
+                      <KeyboardGrid
+                        keymap={keymap}
+                        currentLayer={currentLayer}
+                        selectedKey={selectedKey}
+                        onKeySelect={handleKeySelect}
+                        onKeyChange={handleKeyChange}
+                        onKeyRightClick={handlePickerRequest}
+                        keyLedColors={keyLedColors}
+                        keyBadges={tapDanceBadges}
+                        customLabels={customLabels}
+                      />
+                    </div>
+                    <div className="editor-right">
+                      {editorMode === 'keys' && (
+                        <>
+                          {selectedKeyObj && (
+                            <div className="editor-custom-label">
+                              <span className="editor-custom-label-title">
+                                Custom Label — <em>{selectedKeyObj.label}</em>
+                              </span>
+                              <div className="editor-custom-label-row">
+                                <input
+                                  type="text"
+                                  className="editor-custom-label-input"
+                                  placeholder="Leave empty to use decoded keycode"
+                                  value={customLabels[selectedKeyObj.id] ?? ''}
+                                  onChange={e => {
+                                    const val = e.target.value;
+                                    setCustomLabels(prev => {
+                                      const next = { ...prev };
+                                      if (val) next[selectedKeyObj.id] = val;
+                                      else delete next[selectedKeyObj.id];
+                                      return next;
+                                    });
+                                  }}
+                                  maxLength={12}
+                                />
+                                {customLabels[selectedKeyObj.id] && (
+                                  <button
+                                    className="editor-custom-label-clear"
+                                    onClick={() => setCustomLabels(prev => {
+                                      const next = { ...prev };
+                                      delete next[selectedKeyObj.id];
+                                      return next;
+                                    })}
+                                    title="Clear custom label"
+                                  >✕</button>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                          <KeyPicker
+                            onSelect={(keycode) => selectedKey && handleKeyChange(selectedKey.row, selectedKey.col, keycode)}
+                            focusRequest={pickerRequest}
+                          />
+                        </>
+                      )}
+                      {editorMode === 'lighting' && (
+                        <LightingPanel
+                          device={selectedDevice}
+                          addDebugLog={addDebugLog}
+                          layer={currentLayer}
+                          layerCount={layerCount}
+                          perKeyColors={lightingPerKeyColors}
+                          onPerKeyColorsChange={setLightingPerKeyColors}
+                          scrollSettings={scrollSettings}
+                          onScrollSettingsChange={setScrollSettings}
+                          compact
+                          selectedKey={selectedKey}
+                          perKeyColorsFilePath={perKeyColorsFilePath}
+                        />
+                      )}
+                      {editorMode === 'tap-dance' && (
+                        <TapDanceKeyPanel
+                          selectedKey={selectedKey}
+                          currentLayer={currentLayer}
+                          tapDanceKeys={tapDanceKeys}
+                          onTapDanceKeysChange={setTapDanceKeys}
+                        />
+                      )}
+                    </div>
+                  </div>
+                </div>
               )}
               {activeTab === 'macros'    && <MacroEditor device={selectedDevice} addDebugLog={addDebugLog} reloadKey={macroReloadKey} />}
               {activeTab === 'tapdance' && <TapDanceEditor device={selectedDevice} />}
@@ -458,10 +776,12 @@ export default function App() {
                   device={selectedDevice}
                   addDebugLog={addDebugLog}
                   layer={currentLayer}
+                  layerCount={layerCount}
                   perKeyColors={lightingPerKeyColors}
                   onPerKeyColorsChange={setLightingPerKeyColors}
                   scrollSettings={scrollSettings}
                   onScrollSettingsChange={setScrollSettings}
+                  perKeyColorsFilePath={perKeyColorsFilePath}
                 />
               )}
               {activeTab === 'firmware' && (
@@ -478,20 +798,15 @@ export default function App() {
                   onToggleVerboseDebug={setVerboseDebug}
                   showScanLog={showScanLog}
                   onToggleShowScanLog={setShowScanLog}
+                  perKeyColorsFilePath={perKeyColorsFilePath}
+                  onPerKeyColorsFilePathChange={updatePerKeyColorsFilePath}
                 />
               )}
               {activeTab === 'test' && (
-                <KeyTest selectedDevice={selectedDevice} numLayers={4} addDebugLog={addDebugLog} logPolling={verboseDebug} />
+                <KeyTest selectedDevice={selectedDevice} numLayers={layerCount} addDebugLog={addDebugLog} logPolling={verboseDebug} />
               )}
             </div>
           </div>
-
-          {activeTab === 'editor' && (
-            <KeyPicker
-              onSelect={(keycode) => selectedKey && handleKeyChange(selectedKey.row, selectedKey.col, keycode)}
-              focusRequest={pickerRequest}
-            />
-          )}
         </div>
 
         {showDebugLog && (

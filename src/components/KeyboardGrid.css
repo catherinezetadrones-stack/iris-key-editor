@@ -16,17 +16,41 @@
 
 .grid-info {
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
+  gap: 12px;
   border-bottom: 2px solid var(--accent);
-  padding-bottom: 16px;
+  padding-bottom: 12px;
 }
 
-.grid-info h2 {
+/* Push deselect/info to the right edge */
+.grid-info > :last-child {
+  margin-left: auto;
+}
+
+.layer-name-heading {
   font-family: var(--font-display);
   font-size: 1.8rem;
   color: var(--accent);
   letter-spacing: 2px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.layer-name-heading:hover {
+  opacity: 0.75;
+}
+
+.layer-name-input {
+  font-family: var(--font-display);
+  font-size: 1.8rem;
+  color: var(--accent);
+  letter-spacing: 2px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid var(--accent);
+  outline: none;
+  width: 240px;
+  padding: 0 4px;
 }
 
 .info-text {
@@ -78,16 +102,14 @@
    6 rows (4 matrix rows + 2 thumb rows). */
 .key-grid {
   display: grid;
-  grid-template-columns: repeat(7, 56px);
-  grid-template-rows: repeat(6, 56px);
+  grid-template-columns: repeat(7, 64px);
+  grid-template-rows: repeat(6, 64px);
   gap: 8px;
 }
 
-/* Wrapper that the grid positions; the button fills it. The vertical
-   stagger (margin-top) is applied inline per key. */
 .key-cell {
-  width: 56px;
-  height: 56px;
+  width: 64px;
+  height: 64px;
 }
 
 .keyboard-divider {
