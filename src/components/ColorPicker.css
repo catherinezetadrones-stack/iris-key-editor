@@ -1,0 +1,137 @@
+.color-picker {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  user-select: none;
+}
+
+/* Saturation/Brightness gradient square */
+.cp-square {
+  position: relative;
+  width: 100%;
+  height: 180px;
+  border-radius: 6px;
+  cursor: crosshair;
+  overflow: hidden;
+}
+
+.cp-sq-white {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to right, #fff, transparent);
+}
+
+.cp-sq-black {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, #000, transparent);
+}
+
+.cp-cursor {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.4), 0 1px 4px rgba(0,0,0,0.6);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* Hue strip */
+.cp-hue {
+  position: relative;
+  width: 100%;
+  height: 14px;
+  border-radius: 7px;
+  cursor: pointer;
+  background: linear-gradient(to right,
+    hsl(0,100%,50%), hsl(30,100%,50%), hsl(60,100%,50%),
+    hsl(90,100%,50%), hsl(120,100%,50%), hsl(150,100%,50%),
+    hsl(180,100%,50%), hsl(210,100%,50%), hsl(240,100%,50%),
+    hsl(270,100%,50%), hsl(300,100%,50%), hsl(330,100%,50%), hsl(360,100%,50%)
+  );
+}
+
+.cp-hue-cursor {
+  position: absolute;
+  top: -3px;
+  width: 18px;
+  height: 20px;
+  border-radius: 4px;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.3), 0 1px 4px rgba(0,0,0,0.4);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+/* Hex row */
+.cp-hex-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cp-hex-swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.12);
+  flex-shrink: 0;
+}
+
+.cp-hex-input {
+  flex: 1;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  padding: 4px 8px;
+  border-radius: 4px;
+  text-align: center;
+  letter-spacing: 1px;
+}
+
+.cp-hex-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.cp-clear {
+  padding: 4px 10px;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  border-color: var(--border);
+  border-radius: 4px;
+}
+
+.cp-clear:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: transparent;
+  box-shadow: none;
+}
+
+.cp-clear::before { display: none; }
+
+/* Preset swatches */
+.cp-presets {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 5px;
+}
+
+.cp-swatch {
+  aspect-ratio: 1;
+  border-radius: 5px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color 0.1s, transform 0.1s;
+}
+
+.cp-swatch:hover {
+  border-color: rgba(255,255,255,0.6);
+  transform: scale(1.08);
+}
