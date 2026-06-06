@@ -77,6 +77,21 @@ const KEY_CATEGORIES = [
     ],
   },
   {
+    name: 'Mouse',
+    keys: [
+      { name: 'MS_UP',   code: 0x00cd }, { name: 'MS_DOWN', code: 0x00ce },
+      { name: 'MS_LEFT', code: 0x00cf }, { name: 'MS_RGHT', code: 0x00d0 },
+      { name: 'MS_BTN1', code: 0x00d1 }, { name: 'MS_BTN2', code: 0x00d2 },
+      { name: 'MS_BTN3', code: 0x00d3 }, { name: 'MS_BTN4', code: 0x00d4 },
+      { name: 'MS_BTN5', code: 0x00d5 }, { name: 'MS_BTN6', code: 0x00d6 },
+      { name: 'MS_BTN7', code: 0x00d7 }, { name: 'MS_BTN8', code: 0x00d8 },
+      { name: 'MS_WHLU', code: 0x00d9 }, { name: 'MS_WHLD', code: 0x00da },
+      { name: 'MS_WHLL', code: 0x00db }, { name: 'MS_WHLR', code: 0x00dc },
+      { name: 'MS_ACL0', code: 0x00dd }, { name: 'MS_ACL1', code: 0x00de },
+      { name: 'MS_ACL2', code: 0x00df },
+    ],
+  },
+  {
     name: 'Modifiers',
     keys: [
       { name: 'LCTL', code: 0x00e0 }, { name: 'LSFT', code: 0x00e1 },

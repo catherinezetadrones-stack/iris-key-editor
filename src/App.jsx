@@ -38,6 +38,24 @@ export default function App() {
     localStorage.setItem('perKeyColorsFilePath', path);
     setPerKeyColorsFilePath(path);
   };
+
+  const [tapDanceFilePath, setTapDanceFilePath] = useState(
+    () => localStorage.getItem('tapDanceFilePath') || ''
+  );
+  const updateTapDanceFilePath = (path) => {
+    localStorage.setItem('tapDanceFilePath', path);
+    setTapDanceFilePath(path);
+  };
+
+  const [hiddenTabs, setHiddenTabs] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('hiddenTabs') || '{}'); }
+    catch { return {}; }
+  });
+  const updateHiddenTabs = (tabs) => {
+    localStorage.setItem('hiddenTabs', JSON.stringify(tabs));
+    setHiddenTabs(tabs);
+    setActiveTab(prev => tabs[prev] ? 'editor' : prev);
+  };
   const [editorMode, setEditorMode] = useState('keys'); // 'keys' | 'lighting' | 'tap-dance'
   const [layerCount, setLayerCount] = useState(4);
   const [layerNames, setLayerNames] = useState(() => ['Layer 0', 'Layer 1', 'Layer 2', 'Layer 3']);
@@ -175,16 +193,11 @@ export default function App() {
   };
 
   const applyPerKeyColors = useCallback(async (layer, colors) => {
-    if (!colors) return;
-    const entries = colors.map((hsv, i) => hsv ? { i, hsv } : null).filter(Boolean);
-    if (!entries.length) return;
     try { await invoke('set_lighting', { state: { effect: 1, speed: 128, hue: 0, sat: 255, val: 100 } }); }
     catch { /* keyboard may not be ready yet */ }
-    await Promise.all(
-      entries.map(({ i, hsv }) =>
-        invoke('fastset_led', { ledIndex: i, h: hsv[0], s: hsv[1], v: hsv[2] }).catch(() => {})
-      )
-    );
+    // Send all 68 LEDs so previous layer's colors are cleared; unset keys become black
+    const hsvList = Array.from({ length: 68 }, (_, i) => colors?.[i] ?? [0, 0, 0]);
+    await invoke('apply_led_colors', { hsvList }).catch(() => {});
   }, []);
 
   const handleLayerChange = async (newLayer) => {
@@ -621,11 +634,11 @@ export default function App() {
             <div className="tabs">
               <button className={`tab${activeTab === 'editor'    ? ' active' : ''}`} onClick={() => handleTabChange('editor')}>Editor</button>
               <button className={`tab${activeTab === 'macros'    ? ' active' : ''}`} onClick={() => handleTabChange('macros')}>Macros</button>
-              <button className={`tab${activeTab === 'tapdance'  ? ' active' : ''}`} onClick={() => handleTabChange('tapdance')}>Tap Dance</button>
+              {!hiddenTabs.tapdance && <button className={`tab${activeTab === 'tapdance' ? ' active' : ''}`} onClick={() => handleTabChange('tapdance')}>Tap Dance</button>}
               <button className={`tab${activeTab === 'combos'    ? ' active' : ''}`} onClick={() => handleTabChange('combos')}>Combos</button>
-              <button className={`tab${activeTab === 'lighting'  ? ' active' : ''}`} onClick={() => handleTabChange('lighting')}>Lighting</button>
-              <button className={`tab${activeTab === 'firmware'  ? ' active' : ''}`} onClick={() => handleTabChange('firmware')}>Firmware</button>
+              {!hiddenTabs.lighting && <button className={`tab${activeTab === 'lighting' ? ' active' : ''}`} onClick={() => handleTabChange('lighting')}>Lighting</button>}
               <button className={`tab${activeTab === 'settings'  ? ' active' : ''}`} onClick={() => handleTabChange('settings')}>Settings</button>
+              <button className={`tab${activeTab === 'firmware'  ? ' active' : ''}`} onClick={() => handleTabChange('firmware')}>Firmware</button>
               <button className={`tab${activeTab === 'test'      ? ' active' : ''}`} onClick={() => handleTabChange('test')}>Key Test</button>
             </div>
 
@@ -762,6 +775,7 @@ export default function App() {
                           currentLayer={currentLayer}
                           tapDanceKeys={tapDanceKeys}
                           onTapDanceKeysChange={setTapDanceKeys}
+                          tapDanceFilePath={tapDanceFilePath}
                         />
                       )}
                     </div>
@@ -800,6 +814,10 @@ export default function App() {
                   onToggleShowScanLog={setShowScanLog}
                   perKeyColorsFilePath={perKeyColorsFilePath}
                   onPerKeyColorsFilePathChange={updatePerKeyColorsFilePath}
+                  tapDanceFilePath={tapDanceFilePath}
+                  onTapDanceFilePathChange={updateTapDanceFilePath}
+                  hiddenTabs={hiddenTabs}
+                  onHiddenTabsChange={updateHiddenTabs}
                 />
               )}
               {activeTab === 'test' && (

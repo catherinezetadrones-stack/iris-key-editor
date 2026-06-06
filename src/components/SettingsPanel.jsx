@@ -10,11 +10,24 @@ export default function SettingsPanel({
   onToggleShowScanLog,
   perKeyColorsFilePath = '',
   onPerKeyColorsFilePathChange,
+  tapDanceFilePath = '',
+  onTapDanceFilePathChange,
+  hiddenTabs = {},
+  onHiddenTabsChange,
 }) {
   const handleBrowse = async () => {
     try {
       const path = await invoke('pick_c_output_file');
       if (path) onPerKeyColorsFilePathChange?.(path);
+    } catch (err) {
+      console.error('File pick error:', err);
+    }
+  };
+
+  const handleTdBrowse = async () => {
+    try {
+      const path = await invoke('pick_c_output_file');
+      if (path) onTapDanceFilePathChange?.(path);
     } catch (err) {
       console.error('File pick error:', err);
     }
@@ -41,6 +54,46 @@ export default function SettingsPanel({
           />
           <button onClick={handleBrowse}>Browse…</button>
         </div>
+      </div>
+
+      <div className="settings-group">
+        <div className="settings-group-label">Tap Dance C Output</div>
+        <div className="settings-desc">
+          Path where "Generate C code" saves <code>tap_dance_keys.c</code>.
+          Add <code>#include "tap_dance_keys.c"</code> to your <code>keymap.c</code> once,
+          after the shared TD type definitions.
+        </div>
+        <div className="settings-path-row">
+          <input
+            type="text"
+            className="settings-path-input"
+            value={tapDanceFilePath}
+            onChange={e => onTapDanceFilePathChange?.(e.target.value)}
+            placeholder="C:\…\keymaps\vial\tap_dance_keys.c"
+            spellCheck={false}
+          />
+          <button onClick={handleTdBrowse}>Browse…</button>
+        </div>
+      </div>
+
+      <div className="settings-group">
+        <div className="settings-group-label">Visible Tabs</div>
+        <label>
+          <input
+            type="checkbox"
+            checked={!hiddenTabs.lighting}
+            onChange={e => onHiddenTabsChange?.({ ...hiddenTabs, lighting: !e.target.checked })}
+          />{' '}
+          Lighting
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={!hiddenTabs.tapdance}
+            onChange={e => onHiddenTabsChange?.({ ...hiddenTabs, tapdance: !e.target.checked })}
+          />{' '}
+          Tap Dance
+        </label>
       </div>
 
       <div className="settings-group">

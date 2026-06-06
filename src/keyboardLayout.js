@@ -183,6 +183,13 @@ export const KEYCODE_MAP = (() => {
     0x00b4: 'WSCH', 0x00b5: 'WHOM', 0x00b6: 'WBAK',
     0x00b7: 'WFWD', 0x00b8: 'WSTP', 0x00b9: 'WREF', 0x00ba: 'WFAV',
     0x00bb: 'BRIU', 0x00bc: 'BRID',
+    // Mouse (QK_MOUSE range 0xCD–0xDF)
+    0x00cd: 'MS_UP',   0x00ce: 'MS_DOWN', 0x00cf: 'MS_LEFT', 0x00d0: 'MS_RGHT',
+    0x00d1: 'MS_BTN1', 0x00d2: 'MS_BTN2', 0x00d3: 'MS_BTN3',
+    0x00d4: 'MS_BTN4', 0x00d5: 'MS_BTN5', 0x00d6: 'MS_BTN6',
+    0x00d7: 'MS_BTN7', 0x00d8: 'MS_BTN8',
+    0x00d9: 'MS_WHLU', 0x00da: 'MS_WHLD', 0x00db: 'MS_WHLL', 0x00dc: 'MS_WHLR',
+    0x00dd: 'MS_ACL0', 0x00de: 'MS_ACL1', 0x00df: 'MS_ACL2',
     // QMK special
     0x7c00: 'QK_BOOT',
     // RGB Matrix keycodes (QK_RGB_MATRIX base = 0x7800)
