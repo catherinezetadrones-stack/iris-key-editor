@@ -13,9 +13,9 @@ function labelFor(key, keymap, customLabels) {
   return `0x${code.toString(16).padStart(4, '0')}`;
 }
 
-export default function KeyboardGrid({ keymap, currentLayer, selectedKey, onKeySelect, onKeyRightClick, keyLedColors, keyBadges, customLabels }) {
-  const handleKeyClick = (viaRow, viaCol) => {
-    onKeySelect?.({ row: viaRow, col: viaCol });
+export default function KeyboardGrid({ keymap, currentLayer, selectedKey, selectedKeys, onKeySelect, onKeyRightClick, keyLedColors, keyBadges, customLabels }) {
+  const handleKeyClick = (e, viaRow, viaCol) => {
+    onKeySelect?.({ row: viaRow, col: viaCol }, e.shiftKey);
   };
 
   const handleKeyRightClick = (e, viaRow, viaCol) => {
@@ -44,8 +44,8 @@ export default function KeyboardGrid({ keymap, currentLayer, selectedKey, onKeyS
               keyName={labelFor(key, keymap, customLabels)}
               subLabel={keyBadges?.get(key.id) ?? getSecondary(keymap?.[key.viaRow]?.[key.viaCol])}
               isThumb={key.thumb}
-              isSelected={selectedKey?.row === key.viaRow && selectedKey?.col === key.viaCol}
-              onClick={() => handleKeyClick(key.viaRow, key.viaCol)}
+              isSelected={!!selectedKeys?.has(`${key.viaRow},${key.viaCol}`)}
+              onClick={(e) => handleKeyClick(e, key.viaRow, key.viaCol)}
               glowColor={keyLedColors?.get(key.id)}
             />
           </div>

@@ -15,8 +15,8 @@ export default function KeyButton({ keyName, subLabel, isSelected, onClick, isTh
     setIsPressed(false);
   };
 
-  const handleClick = () => {
-    onClick?.();
+  const handleClick = (e) => {
+    onClick?.(e);
   };
 
   // Abbreviate long key names for display
