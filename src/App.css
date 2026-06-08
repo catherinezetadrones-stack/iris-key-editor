@@ -95,6 +95,17 @@ body {
   background: rgba(0, 217, 255, 0.02);
 }
 
+.dirty-indicator {
+  font-size: 0.6rem;
+  color: var(--accent-alt);
+  border: 1px solid var(--accent-alt);
+  padding: 2px 7px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  border-radius: 2px;
+  opacity: 0.85;
+}
+
 .status-indicator {
   width: 12px;
   height: 12px;

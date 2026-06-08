@@ -30,6 +30,7 @@ export default function App() {
   const [verboseDebug, setVerboseDebug] = useState(false);
   const [pickerRequest, setPickerRequest] = useState(null);
   const [copiedLayer, setCopiedLayer] = useState(null); // cached keymap for paste
+  const [layoutDirty, setLayoutDirty] = useState(false);
   const [showClearModal, setShowClearModal] = useState(false);
   const [showScanLog, setShowScanLog] = useState(false);
   const [perKeyColorsFilePath, setPerKeyColorsFilePath] = useState(
@@ -152,6 +153,7 @@ export default function App() {
             firmwareLayerCountRef.current = 4; // safe fallback
           }
           await loadKeymap(currentLayer);
+          setLayoutDirty(false);
           applyPerKeyColors(currentLayer, lightingPerKeyColors[currentLayer]);
         }
       } catch (err) {
@@ -186,6 +188,7 @@ export default function App() {
           (r, i) => (i === row ? r.map((k, j) => (j === col ? newKeycode : k)) : r)
         );
       }
+      setLayoutDirty(true);
       addDebugLog(`Key updated [${row},${col}] -> 0x${newKeycode.toString(16).padStart(4, '0')}${withinFirmware ? '' : ' (local only)'}`);
       logVerbose(`  └─ decoded: ${decodeQuantum(newKeycode) ?? 'unknown'} | layer ${currentLayer}`);
     } catch (err) {
@@ -290,6 +293,7 @@ export default function App() {
         await invoke('write_layer', { layer: currentLayer, keymap: copiedLayer });
       }
       await loadKeymap(currentLayer);
+      setLayoutDirty(true);
       addDebugLog(`Pasted to layer ${currentLayer}${currentLayer >= firmwareLayerCountRef.current ? ' (local only)' : ''}`);
     } catch (err) {
       addDebugLog(`Paste error: ${err}`);
@@ -310,6 +314,7 @@ export default function App() {
         await invoke('write_layer', { layer: currentLayer, keymap: blank });
       }
       await loadKeymap(currentLayer);
+      setLayoutDirty(true);
       addDebugLog(`Layer ${currentLayer} cleared${currentLayer >= firmwareLayerCountRef.current ? ' (local only)' : ''}`);
     } catch (err) {
       addDebugLog(`Clear error: ${err}`);
@@ -392,7 +397,8 @@ export default function App() {
     try {
       addDebugLog('Reading keyboard state...');
       const profile = await buildProfile();
-      await saveProfileToFile(profile);
+      const saved = await saveProfileToFile(profile);
+      if (saved) setLayoutDirty(false);
     } catch (err) {
       addDebugLog(`Export error: ${err}`);
     }
@@ -551,6 +557,7 @@ export default function App() {
         addDebugLog('Custom labels restored');
       }
       await loadKeymap(currentLayer);
+      setLayoutDirty(false);
       addDebugLog('Profile imported');
     } catch (err) {
       addDebugLog(`Import error: ${err}`);
@@ -640,6 +647,9 @@ export default function App() {
         </div>
 
         <div className="header-status">
+          {layoutDirty && selectedDevice && (
+            <div className="dirty-indicator" title="Layout modified since last connect or import">MODIFIED</div>
+          )}
           {selectedDevice ? (
             <>
               <div className="status-indicator connected" />
