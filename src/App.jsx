@@ -22,6 +22,7 @@ export default function App() {
   const [currentLayer, setCurrentLayer] = useState(0);
   const [keymap, setKeymap] = useState([]);
   const [selectedKey, setSelectedKey] = useState(null);
+  const [selectedKeys, setSelectedKeys] = useState(new Set()); // Set<"row,col"> for multi-select
   const [debugLogs, setDebugLogs] = useState([]);
   const [isFlashing, setIsFlashing] = useState(false);
   const [activeTab, setActiveTab] = useState('editor');
@@ -107,7 +108,7 @@ export default function App() {
           result = await invoke('read_keymap', { layer });
           allKeymapsRef.current[layer] = result;
         } else {
-          result = allKeymapsRef.current[layer] ?? Array.from({ length: 10 }, () => Array(6).fill(0x0001));
+          result = (allKeymapsRef.current[layer] ??= Array.from({ length: 10 }, () => Array(6).fill(0x0000)));
         }
         setKeymap(result);
         addDebugLog(`Loaded layer ${layer}${layer >= firmwareLayerCountRef.current ? ' (local — beyond firmware capacity)' : ''}`);
@@ -204,6 +205,7 @@ export default function App() {
     logVerbose(`Layer: ${currentLayer} → ${newLayer}`);
     setCurrentLayer(newLayer);
     setSelectedKey(null);
+    setSelectedKeys(new Set());
     await loadKeymap(newLayer);
     if (selectedDevice) {
       applyPerKeyColors(newLayer, lightingPerKeyColors[newLayer]);
@@ -213,8 +215,8 @@ export default function App() {
   const handleAddLayer = () => {
     if (layerCount >= 16) return;
     const newIdx = layerCount;
-    // Pre-populate local cache with KC_TRNS so the layer isn't blank on first visit
-    allKeymapsRef.current[newIdx] = Array.from({ length: 10 }, () => Array(6).fill(0x0001));
+    // Pre-populate local cache with KC_NO — keys start silent until user assigns them
+    allKeymapsRef.current[newIdx] = Array.from({ length: 10 }, () => Array(6).fill(0x0000));
     setLayerCount(n => n + 1);
     setLayerNames(names => [...names, `Layer ${newIdx}`]);
     setLightingPerKeyColors(prev => [...prev, Array(68).fill(null)]);
@@ -230,10 +232,34 @@ export default function App() {
     }
   };
 
-  const handleKeySelect = (key) => {
-    setSelectedKey(key);
-    if (key) logVerbose(`Key selected: [${key.row},${key.col}]`);
-    else logVerbose('Key deselected');
+  const handleKeySelect = (key, shiftHeld = false) => {
+    if (!key) {
+      setSelectedKey(null);
+      setSelectedKeys(new Set());
+      logVerbose('Key deselected');
+      return;
+    }
+    if (shiftHeld) {
+      setSelectedKeys(prev => {
+        const next = new Set(prev);
+        const id = `${key.row},${key.col}`;
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+      setSelectedKey(key);
+    } else {
+      setSelectedKey(key);
+      setSelectedKeys(new Set([`${key.row},${key.col}`]));
+    }
+    logVerbose(`Key selected: [${key.row},${key.col}]${shiftHeld ? ' (multi)' : ''}`);
+  };
+
+  const applyKeycodeToSelection = async (keycode) => {
+    for (const id of selectedKeys) {
+      const [r, c] = id.split(',').map(Number);
+      await handleKeyChange(r, c, keycode);
+    }
   };
 
   const handleTabChange = (tab) => {
@@ -313,7 +339,7 @@ export default function App() {
     const firmwareLayers = await invoke('read_all_layers');
     const layers = [...firmwareLayers];
     for (let l = firmwareLayers.length; l < layerCount; l++) {
-      layers.push(allKeymapsRef.current[l] ?? Array.from({ length: 10 }, () => Array(6).fill(0x0001)));
+      layers.push(allKeymapsRef.current[l] ?? Array.from({ length: 10 }, () => Array(6).fill(0x0000)));
     }
     let macros = [];
     try {
@@ -628,6 +654,18 @@ export default function App() {
         </div>
       </header>
 
+      <div className="app-toolbar">
+        <div className="layer-toolbar-group">
+          <button onClick={handleCopyLayer} disabled={!selectedDevice || !keymap.length} title="Copy this layer's keycodes into clipboard">Copy</button>
+          <button onClick={handlePasteLayer} disabled={!selectedDevice || !copiedLayer} title="Paste copied layer keycodes here">Paste</button>
+          <button onClick={handleClearLayer} disabled={!selectedDevice} title="Set all keys to transparent (KC_TRNS)">Clear</button>
+        </div>
+        <div className="layer-toolbar-group">
+          <button onClick={handleExportKeymap} disabled={!selectedDevice} title="Save all layers and macros to a JSON profile file">Export Profile</button>
+          <button onClick={handleImportKeymap} disabled={!selectedDevice} title="Restore all layers and macros from a JSON profile file">Import Profile</button>
+        </div>
+      </div>
+
       <div className="app-body">
         <div className="app-main">
           <div className="editor-container">
@@ -641,20 +679,6 @@ export default function App() {
               <button className={`tab${activeTab === 'firmware'  ? ' active' : ''}`} onClick={() => handleTabChange('firmware')}>Firmware</button>
               <button className={`tab${activeTab === 'test'      ? ' active' : ''}`} onClick={() => handleTabChange('test')}>Key Test</button>
             </div>
-
-            {activeTab === 'editor' && (
-              <div className="layer-toolbar">
-                <div className="layer-toolbar-group">
-                  <button onClick={handleCopyLayer} disabled={!selectedDevice || !keymap.length} title="Copy this layer's keycodes into clipboard">Copy</button>
-                  <button onClick={handlePasteLayer} disabled={!selectedDevice || !copiedLayer} title="Paste copied layer keycodes here">Paste</button>
-                  <button onClick={handleClearLayer} disabled={!selectedDevice} title="Set all keys to transparent (KC_TRNS)">Clear</button>
-                </div>
-                <div className="layer-toolbar-group">
-                  <button onClick={handleExportKeymap} disabled={!selectedDevice} title="Save all layers and macros to a JSON profile file">Export Profile</button>
-                  <button onClick={handleImportKeymap} disabled={!selectedDevice} title="Restore all layers and macros from a JSON profile file">Import Profile</button>
-                </div>
-              </div>
-            )}
 
             <div className={`tab-content${activeTab === 'editor' ? ' tab-content-editor' : ''}`}>
               {activeTab === 'editor' && (
@@ -701,6 +725,7 @@ export default function App() {
                         keymap={keymap}
                         currentLayer={currentLayer}
                         selectedKey={selectedKey}
+                        selectedKeys={selectedKeys}
                         onKeySelect={handleKeySelect}
                         onKeyChange={handleKeyChange}
                         onKeyRightClick={handlePickerRequest}
@@ -749,7 +774,7 @@ export default function App() {
                             </div>
                           )}
                           <KeyPicker
-                            onSelect={(keycode) => selectedKey && handleKeyChange(selectedKey.row, selectedKey.col, keycode)}
+                            onSelect={applyKeycodeToSelection}
                             focusRequest={pickerRequest}
                           />
                         </>
