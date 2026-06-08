@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/tauri';
-import { KEYCODE_MAP } from '../keyboardLayout';
+import { KEYCODE_MAP, HALVES } from '../keyboardLayout';
 import { parseBuffer, serializeBuffer } from '../macroCodec';
 import KeyPicker from './KeyPicker';
 import './MacroEditor.css';
@@ -86,6 +86,9 @@ export default function MacroEditor({ device, addDebugLog, reloadKey = 0 }) {
   const [dirty, setDirty]               = useState(false);
   const [activeAction, setActiveAction] = useState(null);
   const [pickerRequest, setPickerRequest] = useState(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const prevMatrixRef = useRef(null);
+  const layer0SnapshotRef = useRef(null);
 
   const load = useCallback(async () => {
     if (!device) return;
@@ -189,6 +192,64 @@ export default function MacroEditor({ device, addDebugLog, reloadKey = 0 }) {
     setPickerRequest(null);
   };
 
+  const startRecording = async () => {
+    if (!device || !macros) return;
+    try {
+      const snapshot = await invoke('read_keymap', { layer: 0 });
+      layer0SnapshotRef.current = snapshot;
+      prevMatrixRef.current = null;
+      setIsRecording(true);
+    } catch (err) {
+      log(`Recorder: failed to read layer 0 — ${err}`);
+    }
+  };
+
+  const stopRecording = () => {
+    setIsRecording(false);
+    prevMatrixRef.current = null;
+  };
+
+  useEffect(() => {
+    if (!isRecording) return;
+    const allKeys = [...HALVES.left, ...HALVES.right];
+
+    const id = setInterval(async () => {
+      try {
+        const matrix = await invoke('get_matrix_state');
+        const prev = prevMatrixRef.current;
+
+        if (prev !== null) {
+          const newTaps = [];
+          for (const key of allKeys) {
+            const cur = matrix[key.matrixRow]?.[key.matrixCol];
+            const was = prev[key.matrixRow]?.[key.matrixCol];
+            if (cur && !was) {
+              const kc = layer0SnapshotRef.current?.[key.viaRow]?.[key.viaCol];
+              if (kc != null && kc >= 0x04 && kc <= 0x00ff) {
+                newTaps.push({ type: 'tap', keycode: kc });
+              }
+            }
+          }
+          if (newTaps.length > 0) {
+            setMacros(prev => {
+              const next = prev.map((m, i) => i === selectedMacro ? [...m] : m);
+              next[selectedMacro] = [...next[selectedMacro], ...newTaps];
+              return next;
+            });
+            setDirty(true);
+          }
+        }
+
+        prevMatrixRef.current = matrix;
+      } catch (err) {
+        log(`Recorder: poll error — ${err}`);
+        setIsRecording(false);
+      }
+    }, 60);
+
+    return () => clearInterval(id);
+  }, [isRecording, selectedMacro]);
+
   // ── Early returns ──────────────────────────────────────────────────────────
 
   if (!device) {
@@ -225,8 +286,15 @@ export default function MacroEditor({ device, addDebugLog, reloadKey = 0 }) {
         <h3>Macro Editor</h3>
         <div className="macro-header-right">
           {status && <span className={`macro-status${status.startsWith('Save') || status.startsWith('Load') ? ' error' : ''}`}>{status}</span>}
-          <button onClick={load}>Reload</button>
-          <button className={dirty ? 'primary' : ''} onClick={handleSave} disabled={!dirty}>Save to keyboard</button>
+          <button
+            className={isRecording ? 'record-btn-active' : ''}
+            onClick={isRecording ? stopRecording : startRecording}
+            title={isRecording ? 'Stop recording keystrokes' : 'Record keystrokes into this macro slot'}
+          >
+            {isRecording ? 'Stop' : 'Record'}
+          </button>
+          <button onClick={load} disabled={isRecording}>Reload</button>
+          <button className={dirty ? 'primary' : ''} onClick={handleSave} disabled={!dirty || isRecording}>Save to keyboard</button>
         </div>
       </div>
 
@@ -239,6 +307,7 @@ export default function MacroEditor({ device, addDebugLog, reloadKey = 0 }) {
               key={i}
               className={`macro-slot-btn${selectedMacro === i ? ' active' : ''}`}
               onClick={() => handleSelectMacro(i)}
+              disabled={isRecording}
             >
               M({i})
             </button>

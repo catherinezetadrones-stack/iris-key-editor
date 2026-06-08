@@ -266,3 +266,15 @@
   height: auto;
   flex-shrink: 1;
 }
+
+.record-btn-active {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: rgba(255, 71, 87, 0.12);
+  animation: record-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes record-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.55; }
+}
