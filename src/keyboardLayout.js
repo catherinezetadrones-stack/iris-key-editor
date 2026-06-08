@@ -206,6 +206,8 @@ export const KEYCODE_MAP = (() => {
   });
   // MO(n) = 0x5220 | n
   for (let n = 0; n < 16; n++) m[0x5220 + n] = `MO(${n})`;
+  // Custom tap dance — TD(n) = 0x5700 | n
+  for (let n = 0; n < 32; n++) m[0x5700 + n] = `TD(${n})`;
   return m;
 })();
 
@@ -237,6 +239,8 @@ export function decodeQuantum(code) {
     const keyName = KEYCODE_MAP[basic] ?? `0x${basic.toString(16)}`;
     return `LT${layer}·${keyName}`;
   }
+  // QK_TAP_DANCE: 0x5700–0x577F → TD(n)
+  if (code >= 0x5700 && code <= 0x577f) return `TD(${code - 0x5700})`;
   // QK_TO: 0x5200–0x521F → TO(n)
   if (code >= 0x5200 && code <= 0x521f) return `TO(${code & 0x1f})`;
   // QK_TOGGLE_LAYER: 0x5230–0x523F → TG(n)

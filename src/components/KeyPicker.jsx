@@ -213,6 +213,26 @@ const KEY_CATEGORIES = [
     keys: Array.from({ length: 16 }, (_, n) => ({ name: `M(${n})`, code: 0x7700 + n })),
   },
   {
+    name: 'Tap Dance',
+    keys: Array.from({ length: 32 }, (_, n) => ({ name: `TD(${n})`, code: 0x5700 + n })),
+  },
+  {
+    name: 'RGB',
+    keys: [
+      { name: 'RGB_TOG',  code: 0x7800 },
+      { name: 'RGB_MOD',  code: 0x7801 },
+      { name: 'RGB_RMOD', code: 0x7802 },
+      { name: 'RGB_HUI',  code: 0x7803 },
+      { name: 'RGB_HUD',  code: 0x7804 },
+      { name: 'RGB_SAI',  code: 0x7805 },
+      { name: 'RGB_SAD',  code: 0x7806 },
+      { name: 'RGB_VAI',  code: 0x7807 },
+      { name: 'RGB_VAD',  code: 0x7808 },
+      { name: 'RGB_SPI',  code: 0x7809 },
+      { name: 'RGB_SPD',  code: 0x780a },
+    ],
+  },
+  {
     name: 'Special',
     keys: [
       { name: 'TRNS',    code: 0x0001 },
