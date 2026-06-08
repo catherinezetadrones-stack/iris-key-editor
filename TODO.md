@@ -36,24 +36,12 @@ and summarize what changed.
 
 _Straightforward changes to the existing interface_
 
-**Move COPY / PASTE / CLEAR and EXPORT / IMPORT to the top** Currently, COPY, PASTE, and CLEAR sit as three buttons on the left side of a row that falls between the tab bar and the editor canvas. EXPORT PROFILE and IMPORT PROFILE sit on the right side of that same row. That entire row — including both sets of buttons and the bar element itself that spans the full width and creates a visual dividing line — should be removed from its current position.
-
-Those buttons should be relocated into the top bar area, specifically in a second row directly beneath the existing first row (which contains the layer selectors, the centered title, and the connection status indicator), and above the tab bar. They do not merge into the first row — they form their own dedicated row just below it, maintaining the horizontal layout they already have.
-
-**Default new layers to blank (KC_NO) instead of transparent** When you press `+` to add a layer, it currently inherits from the layer below (transparent). You want new layers to start empty so you're always intentional about what's on them, rather than accidentally inheriting keys you didn't mean to.
-
-**Multi-key selection with Shift-click** Currently you can only select and edit one key at a time. Shift-clicking should let you select a range, so you can assign a color, keycode, or tap dance to multiple keys at once — a big time saver for things like lighting zones or layer-wide assignments.
-
 
 ### New App Features
 
 _More substantial additions to the app itself_
 
-**Add custom keycodes to the keycode library** Allow keycodes that are already defined and understood by the firmware — such as quantum keycodes or other valid QMK identifiers — to be added to the key picker panel so they appear alongside built-in keycodes and can be assigned to keys. Because the firmware operates on numeric keycode values, the app must handle the translation from the keycode's string name (e.g. `QK_BOOT`) to its corresponding numeric value before sending it to the keyboard. Arbitrary or unrecognized strings are not valid — the keycode must already exist in the firmware's keycode space.
-
-**Macro recorder and editor** Extend the existing MACROS tab to support recording keystrokes in real-time (capture mode), then display them as an editable sequence. Currently macros likely have to be built manually step-by-step.
-
-**Global diff / compilation status indicator** A persistent status somewhere in the UI (header or status bar) that tracks whether your current layout differs from what's been flashed to the keyboard — essentially a dirty flag. Pairs with the compilation feature below so you always know if a flash is needed.
+**Auto determine which tap dance entry we are creating or modifying** When we define a per key tap dance and save our profile, this in app defined tap dance is not associated with the tap dance keycode that will be brought in when we compile this into the firmware. It would be great if this determination was made in app and saved to our profile so that after that firmware is flashed to the device and we reload our profile the proper tap dance key code comes in without me manual intervention.
 
 
 ### Firmware related App Features

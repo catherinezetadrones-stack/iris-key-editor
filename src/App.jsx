@@ -381,7 +381,8 @@ export default function App() {
     return { version: 2, keyboard: 'iris-lm', layers, macros, lighting, tap_dance, combos,
       lighting_perkey: lightingPerKeyColors, scroll_settings: scrollSettings,
       layer_count: layerCount, layer_names: layerNames,
-      tap_dance_keys: tapDanceKeys, custom_labels: customLabels };
+      tap_dance_keys: tapDanceKeys, td_key_assignments: tdKeyAssignments,
+      custom_labels: customLabels };
   };
 
   // Save a profile object to a user-chosen file. Returns true if saved.
@@ -414,6 +415,7 @@ export default function App() {
   );
 
   const [tapDanceKeys, setTapDanceKeys] = useState({});
+  const [tdKeyAssignments, setTdKeyAssignments] = useState([]); // Array<{ keyId } | null>, index = TD(n)
   const [customLabels, setCustomLabels]   = useState({});
 
   // Computed per-key glow colors for the keyboard grid in lighting editor mode
@@ -551,6 +553,36 @@ export default function App() {
       if (profile.tap_dance_keys && typeof profile.tap_dance_keys === 'object') {
         setTapDanceKeys(profile.tap_dance_keys);
         addDebugLog('Tap dance key config restored');
+      }
+      if (Array.isArray(profile.td_key_assignments) && profile.td_key_assignments.length > 0) {
+        setTdKeyAssignments(profile.td_key_assignments);
+        addDebugLog('TD key assignments restored');
+        // Auto-apply TD(n) keycodes to layer 0 for each assigned key
+        const allKeys = [...HALVES.left, ...HALVES.right];
+        let applied = 0;
+        for (let n = 0; n < profile.td_key_assignments.length; n++) {
+          const assignment = profile.td_key_assignments[n];
+          if (!assignment?.keyId) continue;
+          const key = allKeys.find(k => k.id === assignment.keyId);
+          if (!key) { addDebugLog(`TD(${n}) assignment: key "${assignment.keyId}" not found — skipped`); continue; }
+          const tdKeycode = 0x5700 | n;
+          try {
+            if (firmwareLayerCountRef.current > 0) {
+              await invoke('write_key', { layer: 0, row: key.viaRow, col: key.viaCol, keycode: tdKeycode });
+            }
+            if (allKeymapsRef.current[0]) {
+              allKeymapsRef.current[0] = allKeymapsRef.current[0].map(
+                (r, ri) => ri === key.viaRow ? r.map((kc, ci) => ci === key.viaCol ? tdKeycode : kc) : r
+              );
+            } else {
+              addDebugLog(`TD(${n}) auto-apply: layer 0 cache absent — hardware written, cache not updated`);
+            }
+            applied++;
+          } catch (err) {
+            addDebugLog(`TD(${n}) auto-apply failed: ${err}`);
+          }
+        }
+        if (applied > 0) addDebugLog(`Auto-applied ${applied} TD keycode(s) to layer 0`);
       }
       if (profile.custom_labels && typeof profile.custom_labels === 'object') {
         setCustomLabels(profile.custom_labels);
@@ -811,6 +843,8 @@ export default function App() {
                           tapDanceKeys={tapDanceKeys}
                           onTapDanceKeysChange={setTapDanceKeys}
                           tapDanceFilePath={tapDanceFilePath}
+                          tdKeyAssignments={tdKeyAssignments}
+                          onTdKeyAssignmentsChange={setTdKeyAssignments}
                         />
                       )}
                     </div>

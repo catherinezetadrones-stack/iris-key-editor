@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/tauri';
 import { decodeQuantum, KEYCODE_MAP, HALVES } from '../keyboardLayout';
 import KeyPicker from './KeyPicker';
@@ -161,12 +161,14 @@ function TdCodeModal({ code, onClose, copied, onCopy, tapDanceFilePath, onSave, 
   );
 }
 
-export default function TapDanceKeyPanel({ selectedKey, currentLayer, tapDanceKeys, onTapDanceKeysChange, tapDanceFilePath }) {
+export default function TapDanceKeyPanel({ selectedKey, currentLayer, tapDanceKeys, onTapDanceKeysChange, tapDanceFilePath, tdKeyAssignments = [], onTdKeyAssignmentsChange }) {
   const [activeTdField, setActiveTdField] = useState(null);
   const [pickerRequest, setPickerRequest]   = useState(null);
   const [showCodeModal, setShowCodeModal]   = useState(false);
   const [copied, setCopied]                 = useState(false);
   const [fileSaveStatus, setFileSaveStatus] = useState('');
+  const [assignIndexInput, setAssignIndexInput] = useState(0);
+  const [assignConflict, setAssignConflict]     = useState('');
 
   const keyObj = selectedKey
     ? [...HALVES.left, ...HALVES.right].find(
@@ -183,6 +185,59 @@ export default function TapDanceKeyPanel({ selectedKey, currentLayer, tapDanceKe
   const totalConfigured = Object.values(tapDanceKeys).reduce((sum, layerObj) =>
     sum + Object.values(layerObj).filter(e => FIELDS.some(f => (e[f.key] ?? 0) !== 0)).length, 0
   );
+
+  // Implicit TD index from the code generator's key ordering (same logic as buildTapDanceCCode)
+  const suggestedIndex = (() => {
+    if (!keyId) return 0;
+    const seen = new Set();
+    Object.values(tapDanceKeys).forEach(layerObj => {
+      Object.entries(layerObj ?? {}).forEach(([kid, e]) => {
+        if (FIELDS.some(f => (e[f.key] ?? 0) !== 0)) seen.add(kid);
+      });
+    });
+    const ordered = [...seen];
+    const idx = ordered.indexOf(keyId);
+    return idx >= 0 ? idx : ordered.length;
+  })();
+
+  // Index of this key in tdKeyAssignments (-1 if not assigned)
+  const currentAssignedIndex = tdKeyAssignments.findIndex(a => a?.keyId === keyId);
+
+  // Reset assignment input when selected key changes.
+  // suggestedIndex is intentionally omitted from deps: stale suggestions between
+  // tapDanceKeys edits are acceptable since the user can override before clicking Assign.
+  // The input resets to the current suggestedIndex only when switching keys.
+  useEffect(() => {
+    setAssignIndexInput(suggestedIndex >= 0 ? suggestedIndex : 0);
+    setAssignConflict('');
+  }, [keyId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleAssign = () => {
+    const n = assignIndexInput;
+    const conflict = tdKeyAssignments[n]?.keyId;
+    if (conflict && conflict !== keyId) {
+      setAssignConflict(`TD(${n}) already used by ${conflict}`);
+      return;
+    }
+    setAssignConflict('');
+    onTdKeyAssignmentsChange(prev => {
+      const next = [...prev];
+      // Remove any existing assignment for this keyId
+      for (let i = 0; i < next.length; i++) {
+        if (next[i]?.keyId === keyId) next[i] = null;
+      }
+      next[n] = { keyId };
+      return next;
+    });
+  };
+
+  const handleRemoveAssignment = () => {
+    onTdKeyAssignmentsChange(prev => {
+      const next = [...prev];
+      next[currentAssignedIndex] = null;
+      return next;
+    });
+  };
 
   const updateEntry = (field, code) => {
     if (!keyId) return;
@@ -202,6 +257,14 @@ export default function TapDanceKeyPanel({ selectedKey, currentLayer, tapDanceKe
       delete layerCopy[keyId];
       return { ...prev, [currentLayer]: layerCopy };
     });
+    // Also clear any VIA assignment so the slot is not re-applied on next import
+    if (onTdKeyAssignmentsChange && currentAssignedIndex >= 0) {
+      onTdKeyAssignmentsChange(prev => {
+        const next = [...prev];
+        next[currentAssignedIndex] = null;
+        return next;
+      });
+    }
     setActiveTdField(null);
   };
 
@@ -253,7 +316,12 @@ export default function TapDanceKeyPanel({ selectedKey, currentLayer, tapDanceKe
         <>
           <div className="td-key-label">
             <span className="td-key-name">{keyObj.label}</span>
-            <span className="td-key-id">{keyId}</span>
+            <div className="td-key-id-wrap">
+              <span className="td-key-id">{keyId}</span>
+              {currentAssignedIndex >= 0 && (
+                <span className="td-key-badge">TD({currentAssignedIndex})</span>
+              )}
+            </div>
           </div>
 
           <div className="td-fields">
@@ -291,6 +359,36 @@ export default function TapDanceKeyPanel({ selectedKey, currentLayer, tapDanceKe
             <button className="td-remove-btn" onClick={removeEntry}>
               Remove TD from this key
             </button>
+          )}
+
+          {hasAny && (
+            <div className="td-assign-section">
+              <span className="td-assign-label">VIA Keymap Assignment</span>
+              {currentAssignedIndex >= 0 ? (
+                <div className="td-assign-row">
+                  <span className="td-assign-badge">TD({currentAssignedIndex})</span>
+                  <span className="td-assign-desc">auto-applied on profile import</span>
+                  <button className="td-assign-remove" onClick={handleRemoveAssignment}>Remove</button>
+                </div>
+              ) : (
+                <>
+                  <div className="td-assign-row">
+                    <span className="td-assign-text">Assign as TD(</span>
+                    <input
+                      type="number"
+                      className="td-assign-input"
+                      value={assignIndexInput}
+                      min={0}
+                      max={31}
+                      onChange={e => { setAssignIndexInput(parseInt(e.target.value) || 0); setAssignConflict(''); }}
+                    />
+                    <span className="td-assign-text">)</span>
+                    <button className="td-assign-btn" onClick={handleAssign}>Assign</button>
+                  </div>
+                  {assignConflict && <div className="td-assign-warning">{assignConflict}</div>}
+                </>
+              )}
+            </div>
           )}
 
           {activeTdField && (

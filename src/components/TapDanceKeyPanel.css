@@ -56,10 +56,26 @@
   font-weight: 600;
 }
 
+.td-key-id-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .td-key-id {
   font-size: 0.62rem;
   color: var(--text-secondary);
   font-family: var(--font-mono);
+}
+
+.td-key-badge {
+  font-size: 0.6rem;
+  font-family: var(--font-mono);
+  color: var(--accent-alt);
+  border: 1px solid var(--accent-alt);
+  padding: 1px 5px;
+  border-radius: 2px;
+  opacity: 0.8;
 }
 
 .td-fields {
@@ -148,6 +164,93 @@
   font-size: 0.65rem;
   color: var(--text-secondary);
   white-space: nowrap;
+}
+
+.td-assign-section {
+  padding: 6px 14px 10px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.td-assign-label {
+  display: block;
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.td-assign-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.td-assign-text {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+}
+
+.td-assign-input {
+  width: 48px;
+  padding: 3px 6px;
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  text-align: right;
+}
+
+.td-assign-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.td-assign-badge {
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  color: var(--accent-alt);
+  border: 1px solid var(--accent-alt);
+  padding: 1px 6px;
+  border-radius: 2px;
+  opacity: 0.85;
+}
+
+.td-assign-desc {
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+.td-assign-remove {
+  font-size: 0.65rem;
+  color: var(--danger);
+  border-color: var(--danger);
+  background: transparent;
+  opacity: 0.7;
+  padding: 2px 7px;
+}
+
+.td-assign-remove:hover {
+  opacity: 1;
+  background: rgba(255, 71, 87, 0.08);
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.td-assign-btn {
+  font-size: 0.68rem;
+  padding: 3px 8px;
+}
+
+.td-assign-warning {
+  font-size: 0.65rem;
+  color: var(--danger);
+  margin-top: 4px;
 }
 
 .td-remove-btn {
