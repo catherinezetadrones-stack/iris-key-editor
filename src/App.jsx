@@ -49,6 +49,14 @@ export default function App() {
     setTapDanceFilePath(path);
   };
 
+  const [scrollTextFilePath, setScrollTextFilePath] = useState(
+    () => localStorage.getItem('scrollTextFilePath') || ''
+  );
+  const updateScrollTextFilePath = (path) => {
+    localStorage.setItem('scrollTextFilePath', path);
+    setScrollTextFilePath(path);
+  };
+
   const [hiddenTabs, setHiddenTabs] = useState(() => {
     try { return JSON.parse(localStorage.getItem('hiddenTabs') || '{}'); }
     catch { return {}; }
@@ -890,6 +898,7 @@ export default function App() {
                           compact
                           selectedKey={selectedKey}
                           perKeyColorsFilePath={perKeyColorsFilePath}
+                          scrollTextFilePath={scrollTextFilePath}
                         />
                       )}
                       {editorMode === 'tap-dance' && (
@@ -921,6 +930,7 @@ export default function App() {
                   scrollSettings={scrollSettings}
                   onScrollSettingsChange={setScrollSettings}
                   perKeyColorsFilePath={perKeyColorsFilePath}
+                  scrollTextFilePath={scrollTextFilePath}
                 />
               )}
               {activeTab === 'firmware' && (
@@ -941,6 +951,8 @@ export default function App() {
                   onPerKeyColorsFilePathChange={updatePerKeyColorsFilePath}
                   tapDanceFilePath={tapDanceFilePath}
                   onTapDanceFilePathChange={updateTapDanceFilePath}
+                  scrollTextFilePath={scrollTextFilePath}
+                  onScrollTextFilePathChange={updateScrollTextFilePath}
                   hiddenTabs={hiddenTabs}
                   onHiddenTabsChange={updateHiddenTabs}
                 />

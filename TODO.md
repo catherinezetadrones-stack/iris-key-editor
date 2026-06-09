@@ -46,18 +46,25 @@ _Straightforward changes to the existing interface_
 
 _More substantial additions to the app itself_
 
+**Save directly on the imported profile. Standard (Open, New, Save, SaveAs, Undo, Redo) operations** -  I would like to change the file operations to be more comparable to working with a file. Import is equivalent to `Open` and Export is equivalent to `Save As`. Once a profile is imported we should view that file name under the keyboard indicator and above the export and import buttons. When changes are made we should save directly on this profile. `New` should open a directory picker and allow the user to save the default keymap in the directory of choice and then `Open` that file. Im not sure the best way to incorporate the undo and redo logic and honestly is a secondary concern if it isn't going to be a standard implementation. If you feel confident with how to incorporate undo and redo then include it in this feature.
+
+**Update the `keymap.c` with my in App built keymap** - I want to do this so that when I compile the firmware and do the subsequent flash of the firmware the settings I just finished will be available on the keyboard immediately without me needing to reload a profile. This coupled with the previous  
+
+
 ### Firmware related App Features
 
 _Require knowledge about firmware and may require web access for research_
 
-**Remove the VIAL lock mode**  Having to unlock the keyboard in order to update combo or key test kind of slows things down. Lets unlock this feature in the firmware.
+**In-app compilation (bundled, keyboard-specific)**
+_Phase 1 complete: compile via external QMK MSYS2 install with real-time log streaming in the Firmware tab._
 
+Phase 2 goal: make the full compile → bootload → flash cycle self-contained and seamless — no additional software installs required on any Windows machine.
 
-**In-app compilation (bundled, keyboard-specific)** The app already generates the QMK `.c` source files and writes them to the correct directories — that part is done. The goal here is to go one step further and bundle the minimal subset of the QMK build toolchain required specifically for the Iris LM-K, so the full compilation can happen inside the app without requiring a separate QMK environment installed on the user's machine.
+**Firmware tab UI:** The existing design works as-is; no major redesign needed. The step order should be: Compile → Select firmware file → Enter bootloader → Flash. Everything else the user already knows how to do.
 
-The motivation for bundling rather than depending on a full QMK install is footprint: a standard QMK setup is around 5GB because it ships with configurations for every supported keyboard. Since this app targets only the Iris LM-K, only the toolchain components relevant to that board need to be included, making a much leaner self-contained package realistic.
+**Longer term:** The real ambition is that a user never needs to visit the Firmware tab at all. Changes made in the editor (keymaps, lighting, tap dance, etc.) should be push-able to the keyboard in one action — compile, detect the bootloader port, and flash both halves automatically without the user having to navigate away.
 
-The UI design and interaction flow for this already exists on the Firmware tab and should be referenced from there — the intent here is purely about making the compilation step work end-to-end within the app, not about redesigning how it's presented.
-
-I would like this this to be a fully automated process for this app, including flashing the new firmware using the QMK's `QK_BOOT` keycode to finalize the update of the keyboard.
+- **Bundle the toolchain and QMK sources.** Ship the ARM toolchain and all QMK/vial-qmk source files needed for `keebio/iris_lm/k1 vial` directly inside the app. Our generated `.c` files (`keymap.c`, `per_key_colors.c`, `tap_dance_keys.c`, `scroll_text.c`) should be written into this bundled source tree before each compile so the output always reflects the current app state.
+- **One-click compile → flash.** After a successful compile, auto-detect the keyboard's DFU bootloader port, invoke the bundled flash tool, and flash both halves without prompts. The user only needs to trigger bootloader mode.
+- **Progress and error reporting.** Real-time streaming output (already in place for compile) should extend through the flash step, with clear per-half success/failure indicators.
 
