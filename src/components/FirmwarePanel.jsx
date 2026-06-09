@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/tauri';
+import { listen } from '@tauri-apps/api/event';
 import './FirmwarePanel.css';
 
 // ── Collapsible section ───────────────────────────────────────────────────────
@@ -32,8 +33,17 @@ export default function FirmwarePanel({ device, onBootloader }) {
   const [flashing, setFlashing]         = useState(false);
   const [flashResult, setFlashResult]   = useState(null); // { ok: bool, msg: string }
   const [log, setLog]                   = useState([]);
+  const [qmkInfo, setQmkInfo]           = useState(null); // null = detecting
+  const [compiling, setCompiling]       = useState(false);
+  const logBodyRef                      = useRef(null);
 
   const addLog = (msg) => setLog(prev => [...prev, msg]);
+
+  useEffect(() => {
+    if (logBodyRef.current) {
+      logBodyRef.current.scrollTop = logBodyRef.current.scrollHeight;
+    }
+  }, [log]);
 
   const refreshStatus = useCallback(async () => {
     if (!device) return;
@@ -48,6 +58,12 @@ export default function FirmwarePanel({ device, onBootloader }) {
   }, [device]);
 
   useEffect(() => { refreshStatus(); }, [refreshStatus]);
+
+  useEffect(() => {
+    invoke('detect_qmk')
+      .then(setQmkInfo)
+      .catch(() => setQmkInfo({ found: false }));
+  }, []);
 
   const handleJumpBootloader = async () => {
     setFlashResult(null);
@@ -100,6 +116,48 @@ export default function FirmwarePanel({ device, onBootloader }) {
     );
   };
 
+  const handleCompile = async () => {
+    setCompiling(true);
+    setFlashResult(null);
+    addLog('Starting QMK compile for keebio/iris_lm/k1 vial…');
+
+    // Register listeners before invoking so no output lines are missed.
+    // unlistenDone uses `let` so the callback can reference it after assignment.
+    const unlistenOutput = await listen('compile-output', (event) => {
+      if (event.payload.trim()) addLog(event.payload);
+    });
+
+    let unlistenDone;
+    unlistenDone = await listen('compile-done', (event) => {
+      unlistenOutput();
+      unlistenDone?.();
+      const result = event.payload;
+      if (result.success) {
+        addLog('Compile successful.');
+        if (result.bin_path) {
+          setFirmwarePath(result.bin_path);
+          addLog(`Firmware ready: ${result.bin_path}`);
+        } else {
+          addLog('Warning: .bin not found in expected output path — select it manually below.');
+        }
+      } else {
+        addLog('Compile failed — see output above.');
+      }
+      setCompiling(false);
+    });
+
+    try {
+      await invoke('compile_firmware', {
+        qmkHome: qmkInfo?.qmk_home || null,
+      });
+    } catch (err) {
+      unlistenOutput();
+      unlistenDone?.();
+      addLog(`Compile error: ${err}`);
+      setCompiling(false);
+    }
+  };
+
   const handlePickFile = async () => {
     try {
       const path = await invoke('pick_firmware_file');
@@ -131,7 +189,7 @@ export default function FirmwarePanel({ device, onBootloader }) {
     }
   };
 
-  const canFlash = firmwarePath && !flashing;
+  const canFlash = firmwarePath && !flashing && !compiling;
 
   return (
     <div className="fw-panel">
@@ -224,9 +282,47 @@ export default function FirmwarePanel({ device, onBootloader }) {
           <div className="fw-step">
             <div className="fw-step-num">2</div>
             <div className="fw-step-body">
+              <div className="fw-step-title">Compile Firmware</div>
+              {qmkInfo === null ? (
+                <p className="fw-step-desc">Checking for QMK CLI…</p>
+              ) : qmkInfo.found ? (
+                <p className="fw-step-desc">
+                  QMK CLI found{qmkInfo.version ? ` — ${qmkInfo.version}` : ''}.
+                  Compiles <code>keebio/iris_lm/k1 vial</code> using{' '}
+                  {qmkInfo.qmk_home
+                    ? <code>{qmkInfo.qmk_home}</code>
+                    : 'the configured QMK home'}.
+                </p>
+              ) : (
+                <p className="fw-step-desc">
+                  QMK CLI not found — skip to step 3 to select a pre-built .bin file.
+                  To enable compilation, install QMK MSYS2 from <strong>qmk.fm/getting-started</strong>.
+                </p>
+              )}
+              {qmkInfo?.found && (
+                <div className="fw-step-row">
+                  <button
+                    onClick={handleCompile}
+                    disabled={compiling || flashing}
+                    className={!compiling && !flashing ? 'primary' : ''}
+                  >
+                    {compiling ? 'Compiling…' : 'Compile Firmware'}
+                  </button>
+                  {!compiling && firmwarePath && (
+                    <Badge label="Ready to flash" variant="success" />
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="fw-step">
+            <div className="fw-step-num">3</div>
+            <div className="fw-step-body">
               <div className="fw-step-title">Select Firmware File</div>
               <p className="fw-step-desc">
                 Choose a .hex or .bin firmware file for the Iris-LM (QMK, VIAL, or other).
+                If you compiled above, the file is already selected.
               </p>
               <div className="fw-step-row">
                 <button onClick={handlePickFile} disabled={flashing}>Browse…</button>
@@ -240,7 +336,7 @@ export default function FirmwarePanel({ device, onBootloader }) {
           </div>
 
           <div className="fw-step">
-            <div className="fw-step-num">3</div>
+            <div className="fw-step-num">4</div>
             <div className="fw-step-body">
               <div className="fw-step-title">Flash</div>
               <p className="fw-step-desc">
@@ -270,7 +366,7 @@ export default function FirmwarePanel({ device, onBootloader }) {
               <span>Log</span>
               <button className="fw-log-clear" onClick={() => setLog([])}>Clear</button>
             </div>
-            <div className="fw-log-body">
+            <div className="fw-log-body" ref={logBodyRef}>
               {log.map((l, i) => <div key={i} className="fw-log-line">{l}</div>)}
             </div>
           </div>
@@ -385,19 +481,11 @@ export default function FirmwarePanel({ device, onBootloader }) {
             <li>Reconnect the TRRS cable — done</li>
           </ol>
 
-          <h4>After flashing — unlock VIAL</h4>
-          <p>
-            The first time you open the Tap Dance or Combos tab, VIAL will ask you to unlock
-            the keyboard. For the Iris-LM VIAL firmware, the unlock combo is:
-          </p>
-          <div className="fw-unlock-combo">
-            <span className="fw-unlock-key">Top-left key of left half</span>
-            <span className="fw-unlock-plus">+</span>
-            <span className="fw-unlock-key">Bottom-right thumb key of right half</span>
-          </div>
+          <h4>After flashing</h4>
           <p className="fw-note">
-            Hold both keys simultaneously for ~5 seconds when prompted. The keyboard is then
-            unlocked until you unplug it or press Lock.
+            This firmware build runs with <code>VIAL_INSECURE</code> — all features
+            (Tap Dance, Combos, Key Test) are available immediately after flashing with
+            no unlock step required.
           </p>
         </div>
       </Collapsible>
