@@ -18,7 +18,11 @@ and summarize what changed.
 
 ## UI / UX Bugs
 
+- **Key codes shown on other layer may not decode the assigned key** - This is happening on my 5th layer but probably has a larger bug not associated with any specific layer. Currently my 5th layer on the right keyboard I have placed the keycodes for a numpad (P0,P1,P2,P3...ect). These are correctly mapped and I can use them when typing...I also know that they are correctly identified by the App because our right-click functionality takes me directly to the correct keycode in the key picker. THE PROBLEM: The visual layout currently shows these as their base layer labels (H,J,K,L...ect).
+
 - **Macro recorder stops recording if 'enter' is hit** - when macro recording starts we need to remove focus from that the record button so that any key can be pressed during the recording without prematurely stopping the recording.
+
+- **Refined dirty flag** - If I change a key the dirty flag correctly shows there is a diff. However, if I manually revert the change back to the original, flag still shows there is a diff when there is nothing actually changed.
 
 
 ## Firmware Bugs
@@ -36,13 +40,14 @@ and summarize what changed.
 
 _Straightforward changes to the existing interface_
 
+**Custom labels for keys should be layer specific** Custom labels for keys should be layer specific. If I define a custom label for a key on layer 0 I don't need the label to persist for that key position on all layers.
+
+**Add the ability to write custom secondary and tertiary character label** For standard shifted keys like the number keys there are already characters shown in the top right corner of a key. I would like the ability to write my own custom label here. There is also room at the bottom of a key and we could write custom label here as well. The place to edit these labels can be the same place where the other label editing is done, in the right panel under the keys editing mode. All labels should be independently editable and usable meaning any one of them can be filled used with or without the other label positions filled. This data should be stored with my profile.
+
 
 ### New App Features
 
 _More substantial additions to the app itself_
-
-**Auto determine which tap dance entry we are creating or modifying** When we define a per key tap dance and save our profile, this in app defined tap dance is not associated with the tap dance keycode that will be brought in when we compile this into the firmware. It would be great if this determination was made in app and saved to our profile so that after that firmware is flashed to the device and we reload our profile the proper tap dance key code comes in without me manual intervention.
-
 
 ### Firmware related App Features
 

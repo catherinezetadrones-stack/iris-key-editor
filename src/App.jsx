@@ -378,7 +378,7 @@ export default function App() {
     } catch (err) {
       addDebugLog(`Tap dance/combos unavailable — exporting without: ${err}`);
     }
-    return { version: 2, keyboard: 'iris-lm', layers, macros, lighting, tap_dance, combos,
+    return { version: 3, keyboard: 'iris-lm', layers, macros, lighting, tap_dance, combos,
       lighting_perkey: lightingPerKeyColors, scroll_settings: scrollSettings,
       layer_count: layerCount, layer_names: layerNames,
       tap_dance_keys: tapDanceKeys, td_key_assignments: tdKeyAssignments,
@@ -453,12 +453,50 @@ export default function App() {
     return map.size > 0 ? map : null;
   }, [activeTab, currentLayer, tapDanceKeys]);
 
+  const setLabelField = useCallback((field, val) => {
+    if (!selectedKeyObj) return;
+    setCustomLabels(prev => {
+      const layerMap = { ...(prev[currentLayer] ?? {}) };
+      const ex = layerMap[selectedKeyObj.id];
+      const cur = ex && typeof ex === 'object' ? ex : (typeof ex === 'string' ? { primary: ex } : {});
+      const upd = { ...cur, [field]: val };
+      Object.keys(upd).forEach(k => { if (!upd[k]) delete upd[k]; });
+      if (Object.keys(upd).length === 0) delete layerMap[selectedKeyObj.id];
+      else layerMap[selectedKeyObj.id] = upd;
+      const res = { ...prev, [currentLayer]: layerMap };
+      if (Object.keys(res[currentLayer] ?? {}).length === 0) delete res[currentLayer];
+      return res;
+    });
+  }, [selectedKeyObj, currentLayer]);
+
+  const clearAllLabels = useCallback(() => {
+    if (!selectedKeyObj) return;
+    setCustomLabels(prev => {
+      const layerMap = { ...(prev[currentLayer] ?? {}) };
+      delete layerMap[selectedKeyObj.id];
+      const res = { ...prev, [currentLayer]: layerMap };
+      if (Object.keys(res[currentLayer] ?? {}).length === 0) delete res[currentLayer];
+      return res;
+    });
+  }, [selectedKeyObj, currentLayer]);
+
+  const currentKeyEntry = selectedKeyObj ? (customLabels[currentLayer]?.[selectedKeyObj.id] ?? null) : null;
+  const keyPrimaryLabel = currentKeyEntry
+    ? (typeof currentKeyEntry === 'string' ? currentKeyEntry : (currentKeyEntry.primary ?? ''))
+    : '';
+  const keySecondaryLabel = currentKeyEntry && typeof currentKeyEntry === 'object'
+    ? (currentKeyEntry.secondary ?? '')
+    : '';
+  const keyTertiaryLabel = currentKeyEntry && typeof currentKeyEntry === 'object'
+    ? (currentKeyEntry.tertiary ?? '')
+    : '';
+
   const handleImportKeymap = async () => {
     if (!selectedDevice) return;
     try {
       const profile = await invoke('load_profile');
       if (!profile) { addDebugLog('Import cancelled'); return; }
-      if (profile.version !== 1 && profile.version !== 2) { addDebugLog(`Unknown profile version ${profile.version}`); return; }
+      if (profile.version !== 1 && profile.version !== 2 && profile.version !== 3) { addDebugLog(`Unknown profile version ${profile.version}`); return; }
       addDebugLog(`Importing ${profile.layers.length} layers (firmware supports ${firmwareLayerCountRef.current})...`);
       for (let l = 0; l < profile.layers.length; l++) {
         allKeymapsRef.current[l] = profile.layers[l]; // cache all layers locally
@@ -585,7 +623,18 @@ export default function App() {
         if (applied > 0) addDebugLog(`Auto-applied ${applied} TD keycode(s) to layer 0`);
       }
       if (profile.custom_labels && typeof profile.custom_labels === 'object') {
-        setCustomLabels(profile.custom_labels);
+        let labels = profile.custom_labels;
+        if (profile.version <= 2) {
+          // Migrate flat { keyId: string } → { 0: { keyId: { primary: string } } }
+          const migrated = {};
+          Object.entries(labels).forEach(([k, v]) => {
+            migrated[0] = migrated[0] ?? {};
+            migrated[0][k] = typeof v === 'string' ? { primary: v } : v;
+          });
+          labels = migrated;
+          addDebugLog('Custom labels migrated to per-layer format (applied to layer 0)');
+        }
+        setCustomLabels(labels);
         addDebugLog('Custom labels restored');
       }
       await loadKeymap(currentLayer);
@@ -782,37 +831,37 @@ export default function App() {
                           {selectedKeyObj && (
                             <div className="editor-custom-label">
                               <span className="editor-custom-label-title">
-                                Custom Label — <em>{selectedKeyObj.label}</em>
+                                Custom Labels — <em>{selectedKeyObj.label}</em>
                               </span>
-                              <div className="editor-custom-label-row">
-                                <input
-                                  type="text"
-                                  className="editor-custom-label-input"
-                                  placeholder="Leave empty to use decoded keycode"
-                                  value={customLabels[selectedKeyObj.id] ?? ''}
-                                  onChange={e => {
-                                    const val = e.target.value;
-                                    setCustomLabels(prev => {
-                                      const next = { ...prev };
-                                      if (val) next[selectedKeyObj.id] = val;
-                                      else delete next[selectedKeyObj.id];
-                                      return next;
-                                    });
-                                  }}
-                                  maxLength={12}
-                                />
-                                {customLabels[selectedKeyObj.id] && (
-                                  <button
-                                    className="editor-custom-label-clear"
-                                    onClick={() => setCustomLabels(prev => {
-                                      const next = { ...prev };
-                                      delete next[selectedKeyObj.id];
-                                      return next;
-                                    })}
-                                    title="Clear custom label"
-                                  >✕</button>
-                                )}
-                              </div>
+                              {[
+                                { field: 'primary',   label: 'Center',    placeholder: 'Replaces decoded keycode', max: 12, val: keyPrimaryLabel },
+                                { field: 'secondary', label: 'Top-right', placeholder: 'Shifted char / alt',       max: 6,  val: keySecondaryLabel },
+                                { field: 'tertiary',  label: 'Bottom',    placeholder: 'Tertiary label',           max: 8,  val: keyTertiaryLabel },
+                              ].map(({ field, label, placeholder, max, val }) => (
+                                <div key={field} className="editor-custom-label-row">
+                                  <span className="editor-custom-label-field-name">{label}</span>
+                                  <input
+                                    type="text"
+                                    className="editor-custom-label-input"
+                                    placeholder={placeholder}
+                                    value={val}
+                                    onChange={e => setLabelField(field, e.target.value)}
+                                    maxLength={max}
+                                  />
+                                  {val && (
+                                    <button
+                                      className="editor-custom-label-clear"
+                                      onClick={() => setLabelField(field, '')}
+                                      title="Clear"
+                                    >✕</button>
+                                  )}
+                                </div>
+                              ))}
+                              {(keyPrimaryLabel || keySecondaryLabel || keyTertiaryLabel) && (
+                                <button className="editor-custom-label-clear-all" onClick={clearAllLabels}>
+                                  Clear All
+                                </button>
+                              )}
                             </div>
                           )}
                           <KeyPicker

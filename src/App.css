@@ -606,6 +606,36 @@ body {
   display: none;
 }
 
+.editor-custom-label-field-name {
+  font-size: 0.62rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  width: 52px;
+  flex-shrink: 0;
+}
+
+.editor-custom-label-clear-all {
+  align-self: flex-end;
+  font-size: 0.62rem;
+  padding: 2px 7px;
+  color: var(--danger);
+  border-color: var(--danger);
+  background: transparent;
+  opacity: 0.7;
+}
+
+.editor-custom-label-clear-all:hover {
+  opacity: 1;
+  background: rgba(255, 71, 87, 0.08);
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.editor-custom-label-clear-all::before {
+  display: none;
+}
+
 /* Header row: layer name | pill | deselect — all inline */
 .keyboard-header {
   display: flex;

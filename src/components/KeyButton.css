@@ -75,6 +75,19 @@
   opacity: 0.9;
 }
 
+.key-badge {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  opacity: 0.75;
+  line-height: 1;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
 .key-sublabel {
   position: absolute;
   top: 5px;
@@ -86,6 +99,21 @@
   line-height: 1;
   text-transform: none;
   letter-spacing: 0;
+}
+
+.key-tertiarylabel {
+  position: absolute;
+  bottom: 4px;
+  left: 0;
+  right: 0;
+  font-size: 0.65rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  opacity: 0.75;
+  line-height: 1;
+  text-transform: none;
+  letter-spacing: 0;
+  text-align: center;
 }
 
 .key-indicator {
