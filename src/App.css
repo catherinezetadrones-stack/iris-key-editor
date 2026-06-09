@@ -134,6 +134,36 @@ body {
   flex-shrink: 0;
 }
 
+.toolbar-file-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  justify-content: center;
+}
+
+.toolbar-filename {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  letter-spacing: 0.3px;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toolbar-filename--none {
+  opacity: 0.4;
+  font-style: italic;
+}
+
+.toolbar-dirty-dot {
+  font-size: 0.6rem;
+  color: var(--accent-alt);
+  line-height: 1;
+}
+
 .app-body {
   display: flex;
   flex: 1;

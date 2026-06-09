@@ -27,6 +27,8 @@ and summarize what changed.
 
 ## Firmware Bugs
 
+- **Per-Key lighting not working on left keyboard** - despite having the same firmware on both keyboards the per-key LEDs aren't working on my left keyboard when powered from either keyboard. Powering from either keyboard does correctly activate the per-key LEDs on the right keyboard so I think its probably a mapping issue with LEDs on the left board. Or there there should be additional updates to config.h and/or rules.mk. It could be the same reason the scroll text insnt working either (although this use case is more important).
+
 - **Scroll text only renders on right board** — `rgb_matrix_indicators_advanced_user` bounds-check
   fix was applied to `keymap.c` (removed `led_min`/`led_max` guard, marked params
   `__attribute__((unused))`) but the issue persists after compile/flash. Root cause unknown —
@@ -39,6 +41,8 @@ and summarize what changed.
 ### App UI / UX Improvements
 
 _Straightforward changes to the existing interface_
+
+**Scroll bar uniformity** - on the firmware tab there are two scroll bars (Main scroll bar for the page and scroll bar inside the log). These should match the scroll bar design from the rest of the app. For example the scroll bars inside the Keys Panel on the editor tab.
 
 **Add a copy button to the log on firmware tab** This one is pretty straight forward but I would like to add a copy button to the log so that I can provide feedback easier when debugging.
 

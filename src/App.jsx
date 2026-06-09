@@ -57,6 +57,17 @@ export default function App() {
     setScrollTextFilePath(path);
   };
 
+  const [keymapFilePath, setKeymapFilePath] = useState(
+    () => localStorage.getItem('keymapFilePath') || ''
+  );
+  const updateKeymapFilePath = (path) => {
+    localStorage.setItem('keymapFilePath', path);
+    setKeymapFilePath(path);
+  };
+
+  const [currentFilePath, setCurrentFilePath] = useState(null); // null = no file open
+  const [isDirty, setIsDirty] = useState(false);
+
   const [hiddenTabs, setHiddenTabs] = useState(() => {
     try { return JSON.parse(localStorage.getItem('hiddenTabs') || '{}'); }
     catch { return {}; }
@@ -90,6 +101,7 @@ export default function App() {
   const allKeymapsRef = useRef([]);
 
   const layerDropdownRef = useRef(null);
+  const buildProfileRef = useRef(null); // always points to the latest buildProfile closure
   useEffect(() => {
     if (!showLayerDropdown) return;
     const onMouseDown = (e) => {
@@ -197,6 +209,7 @@ export default function App() {
         );
       }
       setLayoutDirty(true);
+      setIsDirty(true);
       addDebugLog(`Key updated [${row},${col}] -> 0x${newKeycode.toString(16).padStart(4, '0')}${withinFirmware ? '' : ' (local only)'}`);
       logVerbose(`  └─ decoded: ${decodeQuantum(newKeycode) ?? 'unknown'} | layer ${currentLayer}`);
     } catch (err) {
@@ -232,6 +245,7 @@ export default function App() {
     setLayerNames(names => [...names, `Layer ${newIdx}`]);
     setLightingPerKeyColors(prev => [...prev, Array(68).fill(null)]);
     setScrollSettings(prev => [...prev, { text: '', speed_ms: 150, fg_hsv: [0, 255, 100], bg_on: false, bg_hsv: [170, 255, 30], target_layer: newIdx }]);
+    setIsDirty(true);
     addDebugLog(`Layer ${newIdx} added (local — write to firmware after updating firmware layer count)`);
   };
 
@@ -240,6 +254,7 @@ export default function App() {
       const trimmed = editingLayerName.trim() || `Layer ${editingLayerIdx}`;
       setLayerNames(names => names.map((n, i) => i === editingLayerIdx ? trimmed : n));
       setEditingLayerIdx(null);
+      setIsDirty(true);
     }
   };
 
@@ -302,6 +317,7 @@ export default function App() {
       }
       await loadKeymap(currentLayer);
       setLayoutDirty(true);
+      setIsDirty(true);
       addDebugLog(`Pasted to layer ${currentLayer}${currentLayer >= firmwareLayerCountRef.current ? ' (local only)' : ''}`);
     } catch (err) {
       addDebugLog(`Paste error: ${err}`);
@@ -323,6 +339,7 @@ export default function App() {
       }
       await loadKeymap(currentLayer);
       setLayoutDirty(true);
+      setIsDirty(true);
       addDebugLog(`Layer ${currentLayer} cleared${currentLayer >= firmwareLayerCountRef.current ? ' (local only)' : ''}`);
     } catch (err) {
       addDebugLog(`Clear error: ${err}`);
@@ -334,10 +351,10 @@ export default function App() {
     try {
       addDebugLog('Reading keyboard state...');
       const profile = await buildProfile();
-      const saved = await saveProfileToFile(profile);
-      if (!saved) { addDebugLog('Export cancelled — clear aborted'); return; }
+      const savedPath = await handleSaveAs(profile);
+      if (!savedPath) { addDebugLog('Save cancelled — clear aborted'); return; }
     } catch (err) {
-      addDebugLog(`Export error: ${err} — clear aborted`);
+      addDebugLog(`Save error: ${err} — clear aborted`);
       return;
     }
     await executeClear();
@@ -392,24 +409,69 @@ export default function App() {
       tap_dance_keys: tapDanceKeys, td_key_assignments: tdKeyAssignments,
       custom_labels: customLabels };
   };
+  // Keep ref current so handleSave always calls the latest snapshot, avoiding stale closure.
+  buildProfileRef.current = buildProfile;
 
-  // Save a profile object to a user-chosen file. Returns true if saved.
-  const saveProfileToFile = async (profile) => {
-    const saved = await invoke('save_profile', { profile });
-    if (saved) addDebugLog('Profile saved');
-    else addDebugLog('Save cancelled');
-    return saved;
-  };
-
-  const handleExportKeymap = async () => {
-    if (!selectedDevice) return;
+  // Save As — opens a dialog. Returns the path that was written, or null if cancelled.
+  const handleSaveAs = async (profileArg) => {
+    if (!selectedDevice) return null;
     try {
       addDebugLog('Reading keyboard state...');
-      const profile = await buildProfile();
-      const saved = await saveProfileToFile(profile);
-      if (saved) setLayoutDirty(false);
+      const profile = profileArg ?? await buildProfile();
+      const savedPath = await invoke('save_profile', { profile });
+      if (savedPath) {
+        setCurrentFilePath(savedPath);
+        setIsDirty(false);
+        setLayoutDirty(false);
+        addDebugLog(`Profile saved: ${savedPath.split(/[\\/]/).pop()}`);
+      } else {
+        addDebugLog('Save cancelled');
+      }
+      return savedPath ?? null;
     } catch (err) {
-      addDebugLog(`Export error: ${err}`);
+      addDebugLog(`Save As error: ${err}`);
+      return null;
+    }
+  };
+
+  // Save — write directly to currentFilePath. Falls back to Save As if no file is open.
+  const handleSave = useCallback(async () => {
+    if (!selectedDevice) return;
+    if (!currentFilePath) { await handleSaveAs(); return; }
+    try {
+      addDebugLog('Saving...');
+      const profile = await buildProfileRef.current();
+      await invoke('save_profile_to_path', { profile, path: currentFilePath });
+      setIsDirty(false);
+      setLayoutDirty(false);
+      addDebugLog(`Saved: ${currentFilePath.split(/[\\/]/).pop()}`);
+    } catch (err) {
+      addDebugLog(`Save error: ${err}`);
+    }
+  }, [selectedDevice, currentFilePath, addDebugLog]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // New — pick a folder, write a default profile there, reset in-memory state.
+  const handleNew = async () => {
+    try {
+      const path = await invoke('new_profile');
+      if (!path) { addDebugLog('New profile cancelled'); return; }
+      // Reset all profile state to defaults
+      setLayerCount(4);
+      setLayerNames(['Layer 0', 'Layer 1', 'Layer 2', 'Layer 3']);
+      setLightingPerKeyColors(Array.from({ length: 4 }, () => Array(68).fill(null)));
+      setScrollSettings(Array.from({ length: 4 }, (_, i) => ({ text: '', speed_ms: 150, fg_hsv: [0, 255, 100], bg_on: false, bg_hsv: [170, 255, 30], target_layer: i })));
+      setTapDanceKeys({});
+      setTdKeyAssignments([]);
+      setCustomLabels({});
+      allKeymapsRef.current = [];
+      setCurrentFilePath(path);
+      setIsDirty(false);
+      setLayoutDirty(false);
+      if (selectedDevice) await loadKeymap(currentLayer);
+      else setKeymap([]);
+      addDebugLog(`New profile created: ${path.split(/[\\/]/).pop()}`);
+    } catch (err) {
+      addDebugLog(`New profile error: ${err}`);
     }
   };
 
@@ -425,6 +487,36 @@ export default function App() {
   const [tapDanceKeys, setTapDanceKeys] = useState({});
   const [tdKeyAssignments, setTdKeyAssignments] = useState([]); // Array<{ keyId } | null>, index = TD(n)
   const [customLabels, setCustomLabels]   = useState({});
+
+  // Wrapped setters that also mark the profile dirty so the UI reflects unsaved changes.
+  const handlePerKeyColorsChange = useCallback((colors) => {
+    setLightingPerKeyColors(colors);
+    setIsDirty(true);
+  }, []);
+  const handleScrollSettingsChange = useCallback((settings) => {
+    setScrollSettings(settings);
+    setIsDirty(true);
+  }, []);
+  const handleTapDanceKeysChange = useCallback((keys) => {
+    setTapDanceKeys(keys);
+    setIsDirty(true);
+  }, []);
+  const handleTdKeyAssignmentsChange = useCallback((assignments) => {
+    setTdKeyAssignments(assignments);
+    setIsDirty(true);
+  }, []);
+
+  // Ctrl+S / Cmd+S global shortcut for Save
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's' && !e.shiftKey) {
+        e.preventDefault();
+        handleSave();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [handleSave]);
 
   // Computed per-key glow colors for the keyboard grid in lighting editor mode
   const keyLedColors = useMemo(() => {
@@ -475,6 +567,7 @@ export default function App() {
       if (Object.keys(res[currentLayer] ?? {}).length === 0) delete res[currentLayer];
       return res;
     });
+    setIsDirty(true);
   }, [selectedKeyObj, currentLayer]);
 
   const clearAllLabels = useCallback(() => {
@@ -486,6 +579,7 @@ export default function App() {
       if (Object.keys(res[currentLayer] ?? {}).length === 0) delete res[currentLayer];
       return res;
     });
+    setIsDirty(true);
   }, [selectedKeyObj, currentLayer]);
 
   const currentKeyEntry = selectedKeyObj ? (customLabels[currentLayer]?.[selectedKeyObj.id] ?? null) : null;
@@ -506,11 +600,12 @@ export default function App() {
     return decodeQuantum(code) || selectedKeyObj.label;
   })();
 
-  const handleImportKeymap = async () => {
+  const handleOpen = async () => {
     if (!selectedDevice) return;
     try {
-      const profile = await invoke('load_profile');
-      if (!profile) { addDebugLog('Import cancelled'); return; }
+      const result = await invoke('load_profile');
+      if (!result) { addDebugLog('Open cancelled'); return; }
+      const { profile, path } = result;
       if (profile.version !== 1 && profile.version !== 2 && profile.version !== 3) { addDebugLog(`Unknown profile version ${profile.version}`); return; }
       addDebugLog(`Importing ${profile.layers.length} layers (firmware supports ${firmwareLayerCountRef.current})...`);
       for (let l = 0; l < profile.layers.length; l++) {
@@ -653,10 +748,12 @@ export default function App() {
         addDebugLog('Custom labels restored');
       }
       await loadKeymap(currentLayer);
+      setCurrentFilePath(path);
+      setIsDirty(false);
       setLayoutDirty(false);
-      addDebugLog('Profile imported');
+      addDebugLog(`Profile opened: ${path.split(/[\\/]/).pop()}`);
     } catch (err) {
-      addDebugLog(`Import error: ${err}`);
+      addDebugLog(`Open error: ${err}`);
     }
   };
 
@@ -766,9 +863,21 @@ export default function App() {
           <button onClick={handlePasteLayer} disabled={!selectedDevice || !copiedLayer} title="Paste copied layer keycodes here">Paste</button>
           <button onClick={handleClearLayer} disabled={!selectedDevice} title="Set all keys to transparent (KC_TRNS)">Clear</button>
         </div>
+        <div className="toolbar-file-status">
+          {currentFilePath ? (
+            <>
+              <span className="toolbar-filename">{currentFilePath.split(/[\\/]/).pop()}</span>
+              {isDirty && <span className="toolbar-dirty-dot" title="Unsaved changes">●</span>}
+            </>
+          ) : (
+            <span className="toolbar-filename toolbar-filename--none">No profile open</span>
+          )}
+        </div>
         <div className="layer-toolbar-group">
-          <button onClick={handleExportKeymap} disabled={!selectedDevice} title="Save all layers and macros to a JSON profile file">Export Profile</button>
-          <button onClick={handleImportKeymap} disabled={!selectedDevice} title="Restore all layers and macros from a JSON profile file">Import Profile</button>
+          <button onClick={handleNew} title="Create a new profile file">New</button>
+          <button onClick={handleOpen} disabled={!selectedDevice} title="Open a profile and write it to the keyboard">Open</button>
+          <button onClick={handleSave} disabled={!selectedDevice} title="Save to current file (Ctrl+S)">Save</button>
+          <button onClick={() => handleSaveAs()} disabled={!selectedDevice} title="Save to a new file">Save As</button>
         </div>
       </div>
 
@@ -892,9 +1001,9 @@ export default function App() {
                           layer={currentLayer}
                           layerCount={layerCount}
                           perKeyColors={lightingPerKeyColors}
-                          onPerKeyColorsChange={setLightingPerKeyColors}
+                          onPerKeyColorsChange={handlePerKeyColorsChange}
                           scrollSettings={scrollSettings}
-                          onScrollSettingsChange={setScrollSettings}
+                          onScrollSettingsChange={handleScrollSettingsChange}
                           compact
                           selectedKey={selectedKey}
                           perKeyColorsFilePath={perKeyColorsFilePath}
@@ -906,10 +1015,10 @@ export default function App() {
                           selectedKey={selectedKey}
                           currentLayer={currentLayer}
                           tapDanceKeys={tapDanceKeys}
-                          onTapDanceKeysChange={setTapDanceKeys}
+                          onTapDanceKeysChange={handleTapDanceKeysChange}
                           tapDanceFilePath={tapDanceFilePath}
                           tdKeyAssignments={tdKeyAssignments}
-                          onTdKeyAssignmentsChange={setTdKeyAssignments}
+                          onTdKeyAssignmentsChange={handleTdKeyAssignmentsChange}
                         />
                       )}
                     </div>
@@ -926,9 +1035,9 @@ export default function App() {
                   layer={currentLayer}
                   layerCount={layerCount}
                   perKeyColors={lightingPerKeyColors}
-                  onPerKeyColorsChange={setLightingPerKeyColors}
+                  onPerKeyColorsChange={handlePerKeyColorsChange}
                   scrollSettings={scrollSettings}
-                  onScrollSettingsChange={setScrollSettings}
+                  onScrollSettingsChange={handleScrollSettingsChange}
                   perKeyColorsFilePath={perKeyColorsFilePath}
                   scrollTextFilePath={scrollTextFilePath}
                 />
@@ -937,6 +1046,9 @@ export default function App() {
                 <FirmwarePanel
                   device={selectedDevice}
                   onBootloader={handleBootloader}
+                  allKeymapsRef={allKeymapsRef}
+                  layerCount={layerCount}
+                  keymapFilePath={keymapFilePath}
                 />
               )}
               {activeTab === 'settings' && (
@@ -953,6 +1065,8 @@ export default function App() {
                   onTapDanceFilePathChange={updateTapDanceFilePath}
                   scrollTextFilePath={scrollTextFilePath}
                   onScrollTextFilePathChange={updateScrollTextFilePath}
+                  keymapFilePath={keymapFilePath}
+                  onKeymapFilePathChange={updateKeymapFilePath}
                   hiddenTabs={hiddenTabs}
                   onHiddenTabsChange={updateHiddenTabs}
                 />

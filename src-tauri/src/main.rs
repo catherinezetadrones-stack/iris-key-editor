@@ -215,8 +215,15 @@ struct KeyboardProfile {
     custom_labels:    Option<serde_json::Value>,
 }
 
+/// Wrapper returned by load_profile so the frontend knows which path was opened.
+#[derive(Serialize)]
+struct LoadProfileResult {
+    profile: KeyboardProfile,
+    path:    String,
+}
+
 #[tauri::command]
-fn save_profile(profile: KeyboardProfile) -> Result<bool, String> {
+fn save_profile(profile: KeyboardProfile) -> Result<Option<String>, String> {
     let path = FileDialogBuilder::new()
         .set_title("Save Iris Profile")
         .add_filter("Iris Profile", &["json"])
@@ -227,16 +234,16 @@ fn save_profile(profile: KeyboardProfile) -> Result<bool, String> {
             let json = serde_json::to_string_pretty(&profile)
                 .map_err(|e| format!("Serialize error: {e}"))?;
             std::fs::write(&p, json).map_err(|e| format!("Write error: {e}"))?;
-            Ok(true)
+            Ok(Some(p.to_string_lossy().into_owned()))
         }
-        None => Ok(false),
+        None => Ok(None),
     }
 }
 
 #[tauri::command]
-fn load_profile() -> Result<Option<KeyboardProfile>, String> {
+fn load_profile() -> Result<Option<LoadProfileResult>, String> {
     let path = FileDialogBuilder::new()
-        .set_title("Load Iris Profile")
+        .set_title("Open Iris Profile")
         .add_filter("Iris Profile", &["json"])
         .pick_file();
     match path {
@@ -245,10 +252,50 @@ fn load_profile() -> Result<Option<KeyboardProfile>, String> {
                 .map_err(|e| format!("Read error: {e}"))?;
             let profile: KeyboardProfile = serde_json::from_str(&json)
                 .map_err(|e| format!("JSON parse error: {e}"))?;
-            Ok(Some(profile))
+            Ok(Some(LoadProfileResult {
+                profile,
+                path: p.to_string_lossy().into_owned(),
+            }))
         }
         None => Ok(None),
     }
+}
+
+/// Write a profile directly to a known path without opening a dialog (used for Save / Ctrl+S).
+#[tauri::command]
+fn save_profile_to_path(profile: KeyboardProfile, path: String) -> Result<(), String> {
+    let json = serde_json::to_string_pretty(&profile)
+        .map_err(|e| format!("Serialize error: {e}"))?;
+    std::fs::write(&path, json).map_err(|e| format!("Write error: {e}"))?;
+    Ok(())
+}
+
+/// Open a folder picker, create a default iris-profile.json there, and return the path.
+/// Returns None if the user cancelled.
+#[tauri::command]
+fn new_profile() -> Result<Option<String>, String> {
+    let dir = FileDialogBuilder::new()
+        .set_title("Choose folder for new profile")
+        .pick_folder();
+    let dir = match dir {
+        None => return Ok(None),
+        Some(d) => d,
+    };
+    let path = dir.join("iris-profile.json");
+    let empty_row: Vec<u16> = vec![0u16; 6];
+    let empty_layer: Vec<Vec<u16>> = vec![empty_row; 10];
+    let profile = serde_json::json!({
+        "version": 3,
+        "keyboard": "iris-lm",
+        "layers": [empty_layer.clone(), empty_layer.clone(), empty_layer.clone(), empty_layer.clone()],
+        "macros": [],
+        "layer_count": 4,
+        "layer_names": ["Layer 0", "Layer 1", "Layer 2", "Layer 3"]
+    });
+    let json = serde_json::to_string_pretty(&profile)
+        .map_err(|e| format!("Serialize error: {e}"))?;
+    std::fs::write(&path, json).map_err(|e| format!("Write error: {e}"))?;
+    Ok(Some(path.to_string_lossy().into_owned()))
 }
 
 // ── VIAL ─────────────────────────────────────────────────────────────────────
@@ -623,6 +670,8 @@ fn main() {
             write_layer,
             read_all_layers,
             save_profile,
+            save_profile_to_path,
+            new_profile,
             load_profile,
             get_macro_info,
             read_macros,

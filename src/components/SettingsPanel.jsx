@@ -14,6 +14,8 @@ export default function SettingsPanel({
   onTapDanceFilePathChange,
   scrollTextFilePath = '',
   onScrollTextFilePathChange,
+  keymapFilePath = '',
+  onKeymapFilePathChange,
   hiddenTabs = {},
   onHiddenTabsChange,
 }) {
@@ -39,6 +41,15 @@ export default function SettingsPanel({
     try {
       const path = await invoke('pick_c_output_file');
       if (path) onScrollTextFilePathChange?.(path);
+    } catch (err) {
+      console.error('File pick error:', err);
+    }
+  };
+
+  const handleKeymapBrowse = async () => {
+    try {
+      const path = await invoke('pick_c_output_file');
+      if (path) onKeymapFilePathChange?.(path);
     } catch (err) {
       console.error('File pick error:', err);
     }
@@ -103,6 +114,25 @@ export default function SettingsPanel({
             spellCheck={false}
           />
           <button onClick={handleScrollBrowse}>Browse…</button>
+        </div>
+      </div>
+
+      <div className="settings-group">
+        <div className="settings-group-label">Keymap Layers C Output</div>
+        <div className="settings-desc">
+          Path where "Write Keymap Source" saves <code>keymap_layers.c</code>.
+          Already included by <code>keymap.c</code> via <code>#include "keymap_layers.c"</code>.
+        </div>
+        <div className="settings-path-row">
+          <input
+            type="text"
+            className="settings-path-input"
+            value={keymapFilePath}
+            onChange={e => onKeymapFilePathChange?.(e.target.value)}
+            placeholder="C:\…\keymaps\vial\keymap_layers.c"
+            spellCheck={false}
+          />
+          <button onClick={handleKeymapBrowse}>Browse…</button>
         </div>
       </div>
 
