@@ -19,6 +19,7 @@ and summarize what changed.
 ## UI / UX Bugs
 
 - **Key codes shown on other layer may not decode the assigned key** - This is happening on my 5th layer but probably has a larger bug not associated with any specific layer. Currently my 5th layer on the right keyboard I have placed the keycodes for a numpad (P0,P1,P2,P3...ect). These are correctly mapped and I can use them when typing...I also know that they are correctly identified by the App because our right-click functionality takes me directly to the correct keycode in the key picker. THE PROBLEM: The visual layout currently shows these as their base layer labels (H,J,K,L...ect).
+This might be attributed to not having parity between all keycodes in the key picker and the translations being done in `keyboardLayout.js`. The same mislabeling is happening in the default label inside the key picker on the `editor-custom-label-title`.
 
 - **Macro recorder stops recording if 'enter' is hit** - when macro recording starts we need to remove focus from that the record button so that any key can be pressed during the recording without prematurely stopping the recording.
 
@@ -39,10 +40,6 @@ and summarize what changed.
 ### App UI / UX Improvements
 
 _Straightforward changes to the existing interface_
-
-**Custom labels for keys should be layer specific** Custom labels for keys should be layer specific. If I define a custom label for a key on layer 0 I don't need the label to persist for that key position on all layers.
-
-**Add the ability to write custom secondary and tertiary character label** For standard shifted keys like the number keys there are already characters shown in the top right corner of a key. I would like the ability to write my own custom label here. There is also room at the bottom of a key and we could write custom label here as well. The place to edit these labels can be the same place where the other label editing is done, in the right panel under the keys editing mode. All labels should be independently editable and usable meaning any one of them can be filled used with or without the other label positions filled. This data should be stored with my profile.
 
 
 ### New App Features

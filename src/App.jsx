@@ -491,6 +491,13 @@ export default function App() {
     ? (currentKeyEntry.tertiary ?? '')
     : '';
 
+  const selectedKeyDisplayName = (() => {
+    if (!selectedKeyObj) return '';
+    const code = keymap?.[selectedKeyObj.viaRow]?.[selectedKeyObj.viaCol];
+    if (code === undefined || code === null || code === 0x0000) return '';
+    return decodeQuantum(code) || selectedKeyObj.label;
+  })();
+
   const handleImportKeymap = async () => {
     if (!selectedDevice) return;
     try {
@@ -831,7 +838,7 @@ export default function App() {
                           {selectedKeyObj && (
                             <div className="editor-custom-label">
                               <span className="editor-custom-label-title">
-                                Custom Labels — <em>{selectedKeyObj.label}</em>
+                                Custom Labels — <em>{selectedKeyDisplayName}</em>
                               </span>
                               {[
                                 { field: 'primary',   label: 'Center',    placeholder: 'Replaces decoded keycode', max: 12, val: keyPrimaryLabel },
