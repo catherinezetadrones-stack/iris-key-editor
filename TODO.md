@@ -18,8 +18,7 @@ and summarize what changed.
 
 ## UI / UX Bugs
 
-- **Key codes shown on other layer may not decode the assigned key** - This is happening on my 5th layer but probably has a larger bug not associated with any specific layer. Currently my 5th layer on the right keyboard I have placed the keycodes for a numpad (P0,P1,P2,P3...ect). These are correctly mapped and I can use them when typing...I also know that they are correctly identified by the App because our right-click functionality takes me directly to the correct keycode in the key picker. THE PROBLEM: The visual layout currently shows these as their base layer labels (H,J,K,L...ect).
-This might be attributed to not having parity between all keycodes in the key picker and the translations being done in `keyboardLayout.js`. The same mislabeling is happening in the default label inside the key picker on the `editor-custom-label-title`.
+- **Multi select functionality does not assign per-key colors** - I tested the multi select functionality and was able to assign a keycode to several keys at once. This same type of multi assignment does not work for per-key color.
 
 - **Macro recorder stops recording if 'enter' is hit** - when macro recording starts we need to remove focus from that the record button so that any key can be pressed during the recording without prematurely stopping the recording.
 
@@ -41,6 +40,7 @@ This might be attributed to not having parity between all keycodes in the key pi
 
 _Straightforward changes to the existing interface_
 
+**Add a copy button to the log on firmware tab** This one is pretty straight forward but I would like to add a copy button to the log so that I can provide feedback easier when debugging.
 
 ### New App Features
 
@@ -50,7 +50,7 @@ _More substantial additions to the app itself_
 
 _Require knowledge about firmware and may require web access for research_
 
-**Remove the VIAL lock mode**  Having to unlock the keyboard in order to update combo or key test kind of slows things down. Can we unlock this feature in the firmware?
+**Remove the VIAL lock mode**  Having to unlock the keyboard in order to update combo or key test kind of slows things down. Lets unlock this feature in the firmware.
 
 
 **In-app compilation (bundled, keyboard-specific)** The app already generates the QMK `.c` source files and writes them to the correct directories — that part is done. The goal here is to go one step further and bundle the minimal subset of the QMK build toolchain required specifically for the Iris LM-K, so the full compilation can happen inside the app without requiring a separate QMK environment installed on the user's machine.
