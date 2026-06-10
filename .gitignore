@@ -25,3 +25,6 @@ dist-ssr
 
 # Reference layout files — not source code
 via-keeb-layout/
+
+# Firmware build-environment pack output (multi-GB; built by scripts/build-fw-env-pack.ps1)
+fw-env-pack/

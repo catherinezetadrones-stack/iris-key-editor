@@ -16,6 +16,9 @@ tokio = { version = "1", features = ["full"] }
 # hidapi bundles its native backend, so no system HIDAPI install is required.
 hidapi = "2.6"
 
+# Extracting the firmware build-environment pack (fw_env.rs).
+zip = { version = "0.6", default-features = false, features = ["deflate"] }
+
 [profile.release]
 panic = "abort"
 codegen-units = 1

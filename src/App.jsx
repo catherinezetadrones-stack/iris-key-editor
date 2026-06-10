@@ -1098,6 +1098,10 @@ export default function App() {
                   allKeymapsRef={allKeymapsRef}
                   layerCount={layerCount}
                   keymapFilePath={keymapFilePath}
+                  perKeyColors={lightingPerKeyColors}
+                  scrollSettings={scrollSettings}
+                  tapDanceKeys={tapDanceKeys}
+                  extraMacros={extraMacros}
                 />
               )}
               {activeTab === 'settings' && (

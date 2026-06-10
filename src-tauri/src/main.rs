@@ -12,6 +12,7 @@
 mod via_protocol;
 mod usb_handler;
 mod dfu_flasher;
+mod fw_env;
 
 use serde::{Deserialize, Serialize};
 use tauri::Manager;
@@ -704,6 +705,14 @@ fn main() {
             list_dfu_devices,
             detect_qmk,
             compile_firmware,
+            fw_env::fw_env_status,
+            fw_env::fw_env_pick_pack,
+            fw_env::fw_env_install,
+            fw_env::fw_env_remove,
+            fw_env::fw_env_write_sources,
+            fw_env::compile_bundled,
+            fw_env::flash_firmware_streamed,
+            fw_env::launch_zadig,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Iris-LM Editor");

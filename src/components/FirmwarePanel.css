@@ -423,3 +423,57 @@ code {
   border-radius: 2px;
   font-size: 0.85em;
 }
+
+/* ── Build environment install progress ─────────────────────────────────── */
+
+.fw-progress {
+  margin-top: 8px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.fw-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+/* ── One-click Build & Flash wizard ─────────────────────────────────────── */
+
+.fw-wizard {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fw-wiz-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  padding: 4px 6px;
+  border-radius: 3px;
+}
+
+.fw-wiz-icon { width: 14px; text-align: center; }
+
+.fw-wiz-pending { color: var(--text-secondary); opacity: 0.6; }
+.fw-wiz-running { color: var(--accent); }
+.fw-wiz-running .fw-wiz-icon { animation: fw-wiz-pulse 1s infinite; }
+.fw-wiz-ok, .fw-wiz-done { color: var(--success, #4caf50); }
+.fw-wiz-error { color: var(--warn, #ff7043); }
+
+.fw-wiz-msg {
+  font-size: 0.75rem;
+  color: var(--warn, #ff7043);
+  margin-left: 8px;
+}
+
+@keyframes fw-wiz-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
