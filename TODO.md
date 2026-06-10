@@ -44,20 +44,22 @@ _Straightforward changes to the existing interface_
 
 **Scroll bar uniformity** - on the firmware tab there are two scroll bars (Main scroll bar for the page and scroll bar inside the log). These should match the scroll bar design from the rest of the app. For example the scroll bars inside the Keys Panel on the editor tab.
 
-**Add a copy button to the log on firmware tab** This one is pretty straight forward but I would like to add a copy button to the log so that I can provide feedback easier when debugging.
+**File name is NOT centered under App Title** - when a profile is opened it now shows the file name under the App title. Unfortunately, this is not centered with the title and makes it look wrong. Make sure the App title, App Subtitle, and opened file are directly in the center of the App
+
+**Layer selection experience** - when I use the arrow button to access additional layers the arrow is then replaced with the newly selected layer. I know I can click that layer again to show the dropdown list again but this is not obvious. Can you add some visual indicator to that selection to let me know it is still a dropdown list?
+
+**Custom description in macro editor** - I would like to add a custom description per macro on the Macros tab. I think the description entry can replace the `macro-center-title`. The description should be stored in the our keymap
+
 
 ### New App Features
 
 _More substantial additions to the app itself_
 
-**Save directly on the imported profile. Standard (Open, New, Save, SaveAs, Undo, Redo) operations** -  I would like to change the file operations to be more comparable to working with a file. Import is equivalent to `Open` and Export is equivalent to `Save As`. Once a profile is imported we should view that file name under the keyboard indicator and above the export and import buttons. When changes are made we should save directly on this profile. `New` should open a directory picker and allow the user to save the default keymap in the directory of choice and then `Open` that file. Im not sure the best way to incorporate the undo and redo logic and honestly is a secondary concern if it isn't going to be a standard implementation. If you feel confident with how to incorporate undo and redo then include it in this feature.
-
-**Update the `keymap.c` with my in App built keymap** - I want to do this so that when I compile the firmware and do the subsequent flash of the firmware the settings I just finished will be available on the keyboard immediately without me needing to reload a profile. This coupled with the previous  
-
-
 ### Firmware related App Features
 
 _Require knowledge about firmware and may require web access for research_
+
+**Use all Macro slots available from QMK and VIA** currently I think we are only using the 16 slots for macros, I think there is an additional 32 slots available through QMK. Can we include these additional macro slots? I am fine keeping the editing experience like it is...the first 16 are VIA and the rest will require compilation for QMK. Use the same pattern we have for the rest of our helper `.c` files that are included in `keymap.c`
 
 **In-app compilation (bundled, keyboard-specific)**
 _Phase 1 complete: compile via external QMK MSYS2 install with real-time log streaming in the Firmware tab._

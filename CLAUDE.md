@@ -61,6 +61,66 @@ Tracked in `TODO.md` in the project root — do not implement anything from it w
 
 ---
 
+## Session Context Management
+
+Long sessions degrade silently — context fills, important early details fall out of the window, and the session ends abruptly mid-implementation with no record of where things stand. This section governs how to handle that gracefully.
+
+### Track context depth continuously
+
+After completing each logical unit of work (a file, a function, a bug fix, a subagent invocation), pause and assess headroom. The session is approaching its limit when any of these are true:
+
+- Multiple large files have been read or written this session
+- Two or more subagent invocations have occurred
+- The task still has significant work remaining and the conversation is already long
+- You are about to start a new file or feature chunk and are uncertain you can finish it
+
+When in doubt, stop early — an orderly handoff is always better than being cut off mid-function.
+
+### Stop at a logical boundary
+
+Never start a new file, function, or feature chunk without enough headroom to finish it. Complete the current atomic unit cleanly, then stop. A partial implementation left without documentation is worse than no implementation.
+
+### Write RESUME.md before signaling the user
+
+When stopping due to context pressure, write `RESUME.md` to the project root **before** telling the user. This file is the authoritative pickup document for the next session. Delete and rewrite it fresh each time — do not append to a previous version.
+
+`RESUME.md` must contain all six sections below. Omitting any section defeats the purpose.
+
+---
+
+**1. Completed this session**
+A concise, file-by-file list of every change made. Include the file path and a one-line description of what changed and why. If a subagent was used, note what it returned.
+
+**2. Current state of in-progress work**
+If anything was left unfinished, describe the exact file, the function or component, and the precise state it was left in. If nothing is in-progress, say so explicitly.
+
+**3. Next steps — ordered and specific**
+Not a summary. Actual instructions the next session can execute without re-reasoning. Each step should name the file, the action, and the expected outcome. Steps must be in dependency order.
+
+**4. Decisions made this session**
+Any architectural choices, tradeoffs, or "why we did it this way" notes that are not obvious from reading the code. The next session will not have this conversation's context — these notes replace it.
+
+**5. Discoveries**
+Bugs found but not yet fixed, edge cases identified, unexpected constraints, or anything that surprised you. Flag each with whether it blocks the next steps or can be deferred.
+
+**6. Verification steps**
+The exact commands the next session should run first to confirm the project is in the expected state before continuing (e.g. `npm run tauri dev`, a specific test, a build check).
+
+---
+
+### Signal the user
+
+After writing `RESUME.md`, tell the user:
+
+- That the session context is running low
+- What was completed
+- That `RESUME.md` has been written to the project root with full pickup instructions
+- To start a new session, paste `RESUME.md` into the first message, and continue
+
+Do not attempt any further implementation after this point. The next session will read `RESUME.md` and pick up from there.
+
+---
+
 ## Agent Rules
 
 ### Plan before implementing

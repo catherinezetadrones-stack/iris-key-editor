@@ -16,6 +16,8 @@ export default function SettingsPanel({
   onScrollTextFilePathChange,
   keymapFilePath = '',
   onKeymapFilePathChange,
+  extraMacrosFilePath = '',
+  onExtraMacrosFilePathChange,
   hiddenTabs = {},
   onHiddenTabsChange,
 }) {
@@ -50,6 +52,15 @@ export default function SettingsPanel({
     try {
       const path = await invoke('pick_c_output_file');
       if (path) onKeymapFilePathChange?.(path);
+    } catch (err) {
+      console.error('File pick error:', err);
+    }
+  };
+
+  const handleExtraMacrosBrowse = async () => {
+    try {
+      const path = await invoke('pick_c_output_file');
+      if (path) onExtraMacrosFilePathChange?.(path);
     } catch (err) {
       console.error('File pick error:', err);
     }
@@ -133,6 +144,26 @@ export default function SettingsPanel({
             spellCheck={false}
           />
           <button onClick={handleKeymapBrowse}>Browse…</button>
+        </div>
+      </div>
+
+      <div className="settings-group">
+        <div className="settings-group-label">Extra Macros C Output</div>
+        <div className="settings-desc">
+          Path where "Generate C code" saves <code>extra_macros.c</code> for the
+          compile-time MU(n) macro slots.
+          Add <code>#include "extra_macros.c"</code> to your <code>keymap.c</code> once.
+        </div>
+        <div className="settings-path-row">
+          <input
+            type="text"
+            className="settings-path-input"
+            value={extraMacrosFilePath}
+            onChange={e => onExtraMacrosFilePathChange?.(e.target.value)}
+            placeholder="C:\…\keymaps\vial\extra_macros.c"
+            spellCheck={false}
+          />
+          <button onClick={handleExtraMacrosBrowse}>Browse…</button>
         </div>
       </div>
 

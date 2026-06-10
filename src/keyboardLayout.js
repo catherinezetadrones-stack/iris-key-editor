@@ -220,6 +220,8 @@ export const KEYCODE_MAP = (() => {
   for (let n = 0; n < 16; n++) m[0x5220 + n] = `MO(${n})`;
   // Custom tap dance — TD(n) = 0x5700 | n
   for (let n = 0; n < 32; n++) m[0x5700 + n] = `TD(${n})`;
+  // Extra compile-time macros — MU(n) = QK_USER_n = SAFE_RANGE | n = 0x7E40 | n
+  for (let n = 0; n < 32; n++) m[0x7E40 + n] = `MU(${n})`;
   return m;
 })();
 
@@ -375,10 +377,10 @@ export const KEY_TO_LED = new Map([
     return (idx != null && idx !== -1) ? [k.id, idx] : null;
   }).filter(Boolean),
   // Left thumb cluster (hardcoded — rotated keys don't align to the grid formula)
-  ['left-t-0', 33],  // HOME
-  ['left-t-1', 32],  // SFT·ENT
-  ['left-t-2', 30],  // MO(1)
-  ['left-t-3', 29],  // LGUI
+  ['left-t-0', 29],  // HOME     — matrix [4,5] → LED 29
+  ['left-t-1', 30],  // SFT·ENT  — matrix [4,4] → LED 30
+  ['left-t-2', 32],  // MO(1)    — matrix [4,3] → LED 32
+  ['left-t-3', 33],  // LGUI     — matrix [4,2] → LED 33
   // Right thumb cluster
   ['right-t-0', 67], // END
   ['right-t-1', 66], // LT3·SP

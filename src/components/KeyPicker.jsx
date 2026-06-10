@@ -213,6 +213,10 @@ const KEY_CATEGORIES = [
     keys: Array.from({ length: 16 }, (_, n) => ({ name: `M(${n})`, code: 0x7700 + n })),
   },
   {
+    name: 'Macro (FW)',
+    keys: Array.from({ length: 32 }, (_, n) => ({ name: `MU(${n})`, code: 0x7E40 + n })),
+  },
+  {
     name: 'Tap Dance',
     keys: Array.from({ length: 32 }, (_, n) => ({ name: `TD(${n})`, code: 0x5700 + n })),
   },

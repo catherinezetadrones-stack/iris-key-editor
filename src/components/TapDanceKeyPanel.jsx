@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/tauri';
-import { decodeQuantum, KEYCODE_MAP, HALVES } from '../keyboardLayout';
+import { decodeQuantum, HALVES } from '../keyboardLayout';
 import KeyPicker from './KeyPicker';
+import { keycodeToC } from '../keycodeToC';
 import './TapDanceKeyPanel.css';
 
 const EMPTY_ENTRY = { on_tap: 0, on_hold: 0, on_double_tap: 0, on_tap_hold: 0, tapping_term_ms: 0 };
@@ -12,34 +13,6 @@ const FIELDS = [
   { key: 'on_double_tap', label: 'Double Tap' },
   { key: 'on_tap_hold',   label: 'Tap + Hold' },
 ];
-
-// Convert QMK 16-bit keycode to C macro string
-function keycodeToC(code) {
-  if (!code || code === 0) return 'KC_NO';
-  if (code === 0x0001) return 'KC_TRNS';
-  if (code <= 0x00FF) {
-    const name = KEYCODE_MAP[code];
-    if (name && name.length > 0 && name !== '▽' && name !== '') return `KC_${name}`;
-    return `(uint16_t)0x${code.toString(16).padStart(4, '0')}`;
-  }
-  if ((code & 0xFFF0) === 0x5220) return `MO(${code & 0xF})`;
-  if ((code & 0xF000) === 0x4000) {
-    const layer = (code >> 8) & 0xF;
-    return `LT(${layer}, ${keycodeToC(code & 0xFF)})`;
-  }
-  if ((code & 0xFFF0) === 0x5230) return `TG(${code & 0xF})`;
-  if (code >= 0x5200 && code <= 0x521F) return `TO(${code & 0x1F})`;
-  if ((code & 0xFFF0) === 0x5260) return `OSL(${code & 0xF})`;
-  if (code >= 0x6000 && code <= 0x7FFF && !(code >= 0x7700 && code <= 0x771F)) {
-    const mod = (code >> 8) & 0x1F;
-    const MOD_MAP = {
-      0x01: 'MOD_LCTL', 0x02: 'MOD_LSFT', 0x04: 'MOD_LALT', 0x08: 'MOD_LGUI',
-      0x11: 'MOD_RCTL', 0x12: 'MOD_RSFT', 0x14: 'MOD_RALT', 0x18: 'MOD_RGUI',
-    };
-    return `MT(${MOD_MAP[mod] ?? `0x${mod.toString(16)}`}, ${keycodeToC(code & 0xFF)})`;
-  }
-  return `(uint16_t)0x${code.toString(16).padStart(4, '0')}`;
-}
 
 function keyIdToEnum(id) {
   return `TD_${id.replace(/-/g, '_').toUpperCase()}`;

@@ -65,6 +65,14 @@ export default function App() {
     setKeymapFilePath(path);
   };
 
+  const [extraMacrosFilePath, setExtraMacrosFilePath] = useState(
+    () => localStorage.getItem('extraMacrosFilePath') || ''
+  );
+  const updateExtraMacrosFilePath = (path) => {
+    localStorage.setItem('extraMacrosFilePath', path);
+    setExtraMacrosFilePath(path);
+  };
+
   const [currentFilePath, setCurrentFilePath] = useState(null); // null = no file open
   const [isDirty, setIsDirty] = useState(false);
 
@@ -407,7 +415,7 @@ export default function App() {
       lighting_perkey: lightingPerKeyColors, scroll_settings: scrollSettings,
       layer_count: layerCount, layer_names: layerNames,
       tap_dance_keys: tapDanceKeys, td_key_assignments: tdKeyAssignments,
-      custom_labels: customLabels };
+      custom_labels: customLabels, extra_macros: extraMacros };
   };
   // Keep ref current so handleSave always calls the latest snapshot, avoiding stale closure.
   buildProfileRef.current = buildProfile;
@@ -463,6 +471,7 @@ export default function App() {
       setTapDanceKeys({});
       setTdKeyAssignments([]);
       setCustomLabels({});
+      setExtraMacros(Array.from({ length: 32 }, () => []));
       allKeymapsRef.current = [];
       setCurrentFilePath(path);
       setIsDirty(false);
@@ -487,6 +496,9 @@ export default function App() {
   const [tapDanceKeys, setTapDanceKeys] = useState({});
   const [tdKeyAssignments, setTdKeyAssignments] = useState([]); // Array<{ keyId } | null>, index = TD(n)
   const [customLabels, setCustomLabels]   = useState({});
+  // Compile-time macros, MU(0)-MU(31). Each slot is an array of action objects
+  // matching the VIA macro action shape ({type, keycode|value|ms}).
+  const [extraMacros, setExtraMacros] = useState(() => Array.from({ length: 32 }, () => []));
 
   // Wrapped setters that also mark the profile dirty so the UI reflects unsaved changes.
   const handlePerKeyColorsChange = useCallback((colors) => {
@@ -503,6 +515,10 @@ export default function App() {
   }, []);
   const handleTdKeyAssignmentsChange = useCallback((assignments) => {
     setTdKeyAssignments(assignments);
+    setIsDirty(true);
+  }, []);
+  const handleExtraMacrosChange = useCallback((updater) => {
+    setExtraMacros(prev => (typeof updater === 'function' ? updater(prev) : updater));
     setIsDirty(true);
   }, []);
 
@@ -746,6 +762,11 @@ export default function App() {
         }
         setCustomLabels(labels);
         addDebugLog('Custom labels restored');
+      }
+      if (Array.isArray(profile.extra_macros)) {
+        const restored = Array.from({ length: 32 }, (_, i) => profile.extra_macros[i] ?? []);
+        setExtraMacros(restored);
+        addDebugLog('Extra macros restored');
       }
       await loadKeymap(currentLayer);
       setCurrentFilePath(path);
@@ -1025,7 +1046,16 @@ export default function App() {
                   </div>
                 </div>
               )}
-              {activeTab === 'macros'    && <MacroEditor device={selectedDevice} addDebugLog={addDebugLog} reloadKey={macroReloadKey} />}
+              {activeTab === 'macros'    && (
+                <MacroEditor
+                  device={selectedDevice}
+                  addDebugLog={addDebugLog}
+                  reloadKey={macroReloadKey}
+                  extraMacros={extraMacros}
+                  onExtraMacrosChange={handleExtraMacrosChange}
+                  extraMacrosFilePath={extraMacrosFilePath}
+                />
+              )}
               {activeTab === 'tapdance' && <TapDanceEditor device={selectedDevice} />}
               {activeTab === 'combos'   && <CombosEditor  device={selectedDevice} />}
               {activeTab === 'lighting' && (
@@ -1067,6 +1097,8 @@ export default function App() {
                   onScrollTextFilePathChange={updateScrollTextFilePath}
                   keymapFilePath={keymapFilePath}
                   onKeymapFilePathChange={updateKeymapFilePath}
+                  extraMacrosFilePath={extraMacrosFilePath}
+                  onExtraMacrosFilePathChange={updateExtraMacrosFilePath}
                   hiddenTabs={hiddenTabs}
                   onHiddenTabsChange={updateHiddenTabs}
                 />

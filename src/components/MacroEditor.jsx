@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/tauri';
 import { KEYCODE_MAP, HALVES } from '../keyboardLayout';
 import { parseBuffer, serializeBuffer } from '../macroCodec';
+import { buildExtraMacroCCode, isSendStringSafe } from '../extraMacroCodec';
 import KeyPicker from './KeyPicker';
 import './MacroEditor.css';
 
@@ -13,7 +14,7 @@ function hidName(hid) {
 
 // ── Action row component ─────────────────────────────────────────────────────
 
-function ActionRow({ action, index, onUpdate, onRemove, onKeyClick, isActive }) {
+function ActionRow({ action, index, onUpdate, onRemove, onKeyClick, isActive, validateText }) {
   const { type } = action;
 
   const handleTypeChange = (e) => {
@@ -29,6 +30,8 @@ function ActionRow({ action, index, onUpdate, onRemove, onKeyClick, isActive }) 
     if (updated.keycode !== undefined) onKeyClick(index, updated.keycode);
   };
 
+  const textInvalid = type === 'text' && validateText && !validateText(action.value);
+
   return (
     <div className="action-row">
       <select value={type} onChange={handleTypeChange} className="action-type-sel">
@@ -41,10 +44,11 @@ function ActionRow({ action, index, onUpdate, onRemove, onKeyClick, isActive }) 
 
       {type === 'text' && (
         <input
-          className="action-input"
+          className={`action-input${textInvalid ? ' invalid' : ''}`}
           value={action.value}
           onChange={e => onUpdate(index, { ...action, value: e.target.value })}
           placeholder="text to type…"
+          title={textInvalid ? 'Contains characters not supported by SEND_STRING (printable ASCII, newline, tab only)' : undefined}
         />
       )}
       {(type === 'tap' || type === 'down' || type === 'up') && (
@@ -74,19 +78,49 @@ function ActionRow({ action, index, onUpdate, onRemove, onKeyClick, isActive }) 
   );
 }
 
+// ── Generated C code modal ───────────────────────────────────────────────────
+
+function ExtraMacroCodeModal({ code, onClose, copied, onCopy, filePath, onSave, fileSaveStatus }) {
+  return (
+    <div className="macro-modal-overlay" onClick={onClose}>
+      <div className="macro-modal" onClick={e => e.stopPropagation()}>
+        <div className="macro-modal-header">
+          <span>Generated Extra Macros C Code</span>
+          <div className="macro-modal-btns">
+            <button onClick={onCopy}>{copied ? '✓ Copied' : 'Copy'}</button>
+            {filePath && (
+              <button onClick={onSave}>{fileSaveStatus || 'Save to file'}</button>
+            )}
+            <button onClick={onClose}>Close</button>
+          </div>
+        </div>
+        <pre className="macro-modal-code">{code}</pre>
+        <div className="macro-modal-hint">
+          Include in <code>keymap.c</code> with <code>#include "extra_macros.c"</code>.
+          Use <code>MU(n)</code> in keymap layers.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
 
-export default function MacroEditor({ device, addDebugLog, reloadKey = 0 }) {
+export default function MacroEditor({ device, addDebugLog, reloadKey = 0, extraMacros, onExtraMacrosChange, extraMacrosFilePath }) {
   const log = addDebugLog ?? (() => {});
   const [macros, setMacros]             = useState(null);
   const [bufferSize, setBufferSize]     = useState(0);
   const [macroCount, setMacroCount]     = useState(0);
+  const [macroMode, setMacroMode]       = useState('via'); // 'via' | 'compile'
   const [selectedMacro, setSelected]    = useState(0);
   const [status, setStatus]             = useState('');
   const [dirty, setDirty]               = useState(false);
   const [activeAction, setActiveAction] = useState(null);
   const [pickerRequest, setPickerRequest] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [showCodeModal, setShowCodeModal] = useState(false);
+  const [copied, setCopied]               = useState(false);
+  const [fileSaveStatus, setFileSaveStatus] = useState('');
   const prevMatrixRef = useRef(null);
   const layer0SnapshotRef = useRef(null);
 
@@ -132,24 +166,44 @@ export default function MacroEditor({ device, addDebugLog, reloadKey = 0 }) {
     }
   };
 
+  const activeList = macroMode === 'via' ? macros : extraMacros;
+
+  // Routes list edits to either local VIA macro state (with dirty tracking) or
+  // the parent-owned compile-time macro state, depending on the active mode.
+  const setActiveList = useCallback((updater) => {
+    if (macroMode === 'via') {
+      setMacros(prev => (typeof updater === 'function' ? updater(prev) : updater));
+      setDirty(true);
+    } else {
+      onExtraMacrosChange?.(updater);
+    }
+  }, [macroMode, onExtraMacrosChange]);
+
+  const handleModeChange = (mode) => {
+    if (mode === macroMode) return;
+    if (isRecording) stopRecording();
+    setMacroMode(mode);
+    setSelected(0);
+    setActiveAction(null);
+    setPickerRequest(null);
+  };
+
   const updateAction = (actionIdx, updated) => {
-    setMacros(prev => {
+    setActiveList(prev => {
       const next = prev.map((m, i) => i === selectedMacro ? [...m] : m);
       next[selectedMacro][actionIdx] = updated;
       return next;
     });
-    setDirty(true);
   };
 
   const removeAction = (actionIdx) => {
-    setMacros(prev => {
+    setActiveList(prev => {
       const next = prev.map((m, i) => i === selectedMacro ? [...m] : m);
       next[selectedMacro].splice(actionIdx, 1);
       return next;
     });
     if (activeAction === actionIdx) setActiveAction(null);
     else if (activeAction > actionIdx) setActiveAction(a => a - 1);
-    setDirty(true);
   };
 
   const addAction = (type) => {
@@ -159,13 +213,12 @@ export default function MacroEditor({ device, addDebugLog, reloadKey = 0 }) {
       delay: { type: 'delay', ms: 100 },
     };
     const newAction = defaults[type] ?? defaults.text;
-    const newIdx = (macros?.[selectedMacro]?.length) ?? 0;
-    setMacros(prev => {
+    const newIdx = (activeList?.[selectedMacro]?.length) ?? 0;
+    setActiveList(prev => {
       const next = prev.map((m, i) => i === selectedMacro ? [...m] : m);
       next[selectedMacro].push(newAction);
       return next;
     });
-    setDirty(true);
     if (newAction.keycode !== undefined) {
       setActiveAction(newIdx);
       setPickerRequest({ code: newAction.keycode });
@@ -179,7 +232,7 @@ export default function MacroEditor({ device, addDebugLog, reloadKey = 0 }) {
 
   const handlePickerSelect = (code) => {
     if (activeAction === null) return;
-    const action = (macros?.[selectedMacro] ?? [])[activeAction];
+    const action = (activeList?.[selectedMacro] ?? [])[activeAction];
     if (!action) return;
     updateAction(activeAction, { ...action, keycode: code });
   };
@@ -210,7 +263,7 @@ export default function MacroEditor({ device, addDebugLog, reloadKey = 0 }) {
   };
 
   useEffect(() => {
-    if (!isRecording) return;
+    if (!isRecording || macroMode !== 'via') return;
     const allKeys = [...HALVES.left, ...HALVES.right];
 
     const id = setInterval(async () => {
@@ -248,7 +301,30 @@ export default function MacroEditor({ device, addDebugLog, reloadKey = 0 }) {
     }, 60);
 
     return () => clearInterval(id);
-  }, [isRecording, selectedMacro]);
+  }, [isRecording, selectedMacro, macroMode]);
+
+  // ── Generated C code (compile mode) ─────────────────────────────────────────
+
+  const codeContent = macroMode === 'compile' ? buildExtraMacroCCode(extraMacros) : '';
+
+  const copyCode = () => {
+    navigator.clipboard.writeText(codeContent).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+
+  const saveCodeToFile = async () => {
+    if (!extraMacrosFilePath) return;
+    try {
+      await invoke('write_text_file', { path: extraMacrosFilePath, content: codeContent });
+      setFileSaveStatus('Saved!');
+      setTimeout(() => setFileSaveStatus(''), 2000);
+    } catch (err) {
+      setFileSaveStatus(`Error: ${err}`);
+      setTimeout(() => setFileSaveStatus(''), 4000);
+    }
+  };
 
   // ── Early returns ──────────────────────────────────────────────────────────
 
@@ -261,7 +337,7 @@ export default function MacroEditor({ device, addDebugLog, reloadKey = 0 }) {
     );
   }
 
-  if (macros === null) {
+  if (macroMode === 'via' && macros === null) {
     return (
       <div className="macro-editor">
         <h3>Macro Editor</h3>
@@ -270,7 +346,7 @@ export default function MacroEditor({ device, addDebugLog, reloadKey = 0 }) {
     );
   }
 
-  const currentActions = macros[selectedMacro] ?? [];
+  const currentActions = activeList?.[selectedMacro] ?? [];
 
   const pickerLabel = (() => {
     if (activeAction === null) return 'Select a key action to edit';
@@ -285,31 +361,55 @@ export default function MacroEditor({ device, addDebugLog, reloadKey = 0 }) {
       <div className="macro-header">
         <h3>Macro Editor</h3>
         <div className="macro-header-right">
-          {status && <span className={`macro-status${status.startsWith('Save') || status.startsWith('Load') ? ' error' : ''}`}>{status}</span>}
-          <button
-            className={isRecording ? 'record-btn-active' : ''}
-            onClick={isRecording ? stopRecording : startRecording}
-            title={isRecording ? 'Stop recording keystrokes' : 'Record keystrokes into this macro slot'}
-          >
-            {isRecording ? 'Stop' : 'Record'}
-          </button>
-          <button onClick={load} disabled={isRecording}>Reload</button>
-          <button className={dirty ? 'primary' : ''} onClick={handleSave} disabled={!dirty || isRecording}>Save to keyboard</button>
+          {macroMode === 'via' && status && (
+            <span className={`macro-status${status.startsWith('Save') || status.startsWith('Load') ? ' error' : ''}`}>{status}</span>
+          )}
+          {macroMode === 'via' && (
+            <>
+              <button
+                className={isRecording ? 'record-btn-active' : ''}
+                onClick={isRecording ? stopRecording : startRecording}
+                title={isRecording ? 'Stop recording keystrokes' : 'Record keystrokes into this macro slot'}
+              >
+                {isRecording ? 'Stop' : 'Record'}
+              </button>
+              <button onClick={load} disabled={isRecording}>Reload</button>
+              <button className={dirty ? 'primary' : ''} onClick={handleSave} disabled={!dirty || isRecording}>Save to keyboard</button>
+            </>
+          )}
+          {macroMode === 'compile' && (
+            <button onClick={() => setShowCodeModal(true)}>Generate C Code</button>
+          )}
         </div>
+      </div>
+
+      <div className="macro-mode-tabs">
+        <button
+          className={`macro-mode-tab${macroMode === 'via' ? ' active' : ''}`}
+          onClick={() => handleModeChange('via')}
+        >
+          VIA Macros
+        </button>
+        <button
+          className={`macro-mode-tab${macroMode === 'compile' ? ' active' : ''}`}
+          onClick={() => handleModeChange('compile')}
+        >
+          Compile Macros
+        </button>
       </div>
 
       <div className="macro-body">
         {/* Left: Macro slot selector */}
         <div className="macro-slots">
           <div className="macro-slots-label">Slot</div>
-          {macros.map((_, i) => (
+          {(activeList ?? []).map((_, i) => (
             <button
               key={i}
               className={`macro-slot-btn${selectedMacro === i ? ' active' : ''}`}
               onClick={() => handleSelectMacro(i)}
               disabled={isRecording}
             >
-              M({i})
+              {macroMode === 'via' ? `M(${i})` : `MU(${i})`}
             </button>
           ))}
         </div>
@@ -317,7 +417,9 @@ export default function MacroEditor({ device, addDebugLog, reloadKey = 0 }) {
         {/* Center: Action list */}
         <div className="macro-center">
           <div className="macro-center-title">
-            M({selectedMacro}) — assign keycodes M(0)–M({macroCount - 1}) to keys to trigger
+            {macroMode === 'via'
+              ? `M(${selectedMacro}) — assign keycodes M(0)–M(${macroCount - 1}) to keys to trigger`
+              : `MU(${selectedMacro}) — assign MU(0)–MU(31) to keys; requires a firmware compile`}
           </div>
 
           <div className="macro-actions">
@@ -334,6 +436,7 @@ export default function MacroEditor({ device, addDebugLog, reloadKey = 0 }) {
                 onRemove={removeAction}
                 onKeyClick={handleKeyClick}
                 isActive={activeAction === i}
+                validateText={macroMode === 'compile' ? isSendStringSafe : null}
               />
             ))}
 
@@ -344,9 +447,11 @@ export default function MacroEditor({ device, addDebugLog, reloadKey = 0 }) {
               <button onClick={() => addAction('delay')}>Delay</button>
             </div>
 
-            <div className="macro-buffer-info">
-              Buffer: {serializeBuffer(macros, bufferSize).filter((_, i) => i < bufferSize).length}/{bufferSize} bytes used
-            </div>
+            {macroMode === 'via' && (
+              <div className="macro-buffer-info">
+                Buffer: {serializeBuffer(macros, bufferSize).filter((_, i) => i < bufferSize).length}/{bufferSize} bytes used
+              </div>
+            )}
           </div>
         </div>
 
@@ -361,6 +466,18 @@ export default function MacroEditor({ device, addDebugLog, reloadKey = 0 }) {
           />
         </div>
       </div>
+
+      {showCodeModal && (
+        <ExtraMacroCodeModal
+          code={codeContent}
+          onClose={() => setShowCodeModal(false)}
+          copied={copied}
+          onCopy={copyCode}
+          filePath={extraMacrosFilePath}
+          onSave={saveCodeToFile}
+          fileSaveStatus={fileSaveStatus}
+        />
+      )}
     </div>
   );
 }

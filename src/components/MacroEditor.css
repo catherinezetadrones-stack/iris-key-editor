@@ -43,6 +43,28 @@
   color: var(--danger);
 }
 
+/* ── Mode tabs ────────────────────────────────────────────────────────────── */
+
+.macro-mode-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 0;
+  flex-shrink: 0;
+}
+
+.macro-mode-tab {
+  padding: 5px 12px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.macro-mode-tab.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(0, 217, 255, 0.08);
+}
+
 /* ── Three-column body ───────────────────────────────────────────────────── */
 
 .macro-body {
@@ -155,6 +177,11 @@
   border-color: var(--accent);
 }
 
+.action-input.invalid {
+  border-color: var(--danger);
+  box-shadow: 0 0 6px rgba(255, 71, 87, 0.25);
+}
+
 .action-hid-input {
   flex: none;
   width: 70px;
@@ -265,6 +292,73 @@
   min-height: 0;
   height: auto;
   flex-shrink: 1;
+}
+
+/* ── Generated code modal ────────────────────────────────────────────────── */
+
+.macro-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 300;
+}
+
+.macro-modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  width: 620px;
+  max-width: 92vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.macro-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8rem;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.macro-modal-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.macro-modal-code {
+  flex: 1;
+  overflow: auto;
+  padding: 14px 16px;
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  background: #0d0d0d;
+  margin: 0;
+}
+
+.macro-modal-hint {
+  padding: 8px 14px;
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  line-height: 1.5;
+}
+
+.macro-modal-hint code {
+  font-family: var(--font-mono);
+  color: var(--accent-alt, #aaa);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1px 4px;
+  border-radius: 2px;
 }
 
 .record-btn-active {
