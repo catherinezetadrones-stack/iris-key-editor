@@ -38,6 +38,24 @@ body {
   overflow: hidden;
 }
 
+/* Global default scrollbar — thin dark style matching the Keys Panel.
+   Webkit-only on purpose: elements that opt into the standard
+   scrollbar-width/scrollbar-color properties (or define their own
+   ::-webkit-scrollbar rules, e.g. .panel) override this default. */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 2px;
+}
+
 /* =============================================================================
    LAYOUT STRUCTURE
    ============================================================================= */
@@ -134,31 +152,33 @@ body {
   flex-shrink: 0;
 }
 
-.toolbar-file-status {
+.header-file-status {
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex: 1;
   justify-content: center;
+  gap: 6px;
+  margin-top: 3px;
 }
 
-.toolbar-filename {
+.header-filename {
   font-size: 0.72rem;
   color: var(--text-secondary);
   font-family: var(--font-mono);
   letter-spacing: 0.3px;
-  max-width: 280px;
+  /* Keep narrower than the subtitle so a long filename can't widen the
+     header's center grid column and shift the title off-center. */
+  max-width: 240px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.toolbar-filename--none {
+.header-filename--none {
   opacity: 0.4;
   font-style: italic;
 }
 
-.toolbar-dirty-dot {
+.header-dirty-dot {
   font-size: 0.6rem;
   color: var(--accent-alt);
   line-height: 1;
@@ -237,6 +257,26 @@ body {
   width: 28px;
   opacity: 0.6;
   font-size: 1rem;
+}
+
+/* Dropdown trigger for layers 4+ — keeps a caret visible even when a layer
+   number is shown, so it still reads as a dropdown. */
+.header-layer-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.header-layer-caret {
+  font-size: 1rem;
+  opacity: 0.7;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+
+.header-layer-caret.open {
+  transform: rotate(180deg);
 }
 
 .header-layer-add:hover:not(:disabled) {

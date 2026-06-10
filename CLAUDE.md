@@ -58,6 +58,7 @@ export PATH="$PATH:/c/Users/phbronson/.cargo\bin" && npm run tauri dev
 ## Planned Features
 
 Tracked in `TODO.md` in the project root — do not implement anything from it without explicit instruction.
+Do not remove ANY items from `TODO.md` when task are complete - the user will manually remove items.
 
 ---
 

@@ -213,6 +213,12 @@ struct KeyboardProfile {
     layer_names:      Option<serde_json::Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     custom_labels:    Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    td_key_assignments: Option<serde_json::Value>, // Array<{ keyId } | null>, index = TD(n)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    extra_macros:     Option<serde_json::Value>,   // compile-time MU(n) macro action lists
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    macro_descriptions: Option<serde_json::Value>, // { via: {slot: text}, qmk: {slot: text} }
 }
 
 /// Wrapper returned by load_profile so the frontend knows which path was opened.

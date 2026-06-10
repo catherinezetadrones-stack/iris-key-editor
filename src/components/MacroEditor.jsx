@@ -106,7 +106,7 @@ function ExtraMacroCodeModal({ code, onClose, copied, onCopy, filePath, onSave, 
 
 // ── Main component ───────────────────────────────────────────────────────────
 
-export default function MacroEditor({ device, addDebugLog, reloadKey = 0, extraMacros, onExtraMacrosChange, extraMacrosFilePath }) {
+export default function MacroEditor({ device, addDebugLog, reloadKey = 0, extraMacros, onExtraMacrosChange, extraMacrosFilePath, macroDescriptions, onMacroDescriptionsChange }) {
   const log = addDebugLog ?? (() => {});
   const [macros, setMacros]             = useState(null);
   const [bufferSize, setBufferSize]     = useState(0);
@@ -237,6 +237,21 @@ export default function MacroEditor({ device, addDebugLog, reloadKey = 0, extraM
     updateAction(activeAction, { ...action, keycode: code });
   };
 
+  // Per-slot descriptions are stored separately for the two modes ('via'/'qmk')
+  // and persisted with the profile by the parent.
+  const descModeKey = macroMode === 'via' ? 'via' : 'qmk';
+  const currentDescription = macroDescriptions?.[descModeKey]?.[selectedMacro] ?? '';
+
+  const handleDescriptionChange = (text) => {
+    onMacroDescriptionsChange?.(prev => {
+      const base = prev && typeof prev === 'object' ? prev : { via: {}, qmk: {} };
+      const modeDescs = { ...(base[descModeKey] ?? {}) };
+      if (text) modeDescs[selectedMacro] = text;
+      else delete modeDescs[selectedMacro];
+      return { ...base, [descModeKey]: modeDescs };
+    });
+  };
+
   const handleSelectMacro = (i) => {
     if (selectedMacro === i) return;
     setSelected(i);
@@ -246,7 +261,8 @@ export default function MacroEditor({ device, addDebugLog, reloadKey = 0, extraM
   };
 
   const startRecording = async () => {
-    if (!device || !macros) return;
+    if (!device) return;
+    if (macroMode === 'via' && !macros) return;
     try {
       const snapshot = await invoke('read_keymap', { layer: 0 });
       layer0SnapshotRef.current = snapshot;
@@ -263,7 +279,7 @@ export default function MacroEditor({ device, addDebugLog, reloadKey = 0, extraM
   };
 
   useEffect(() => {
-    if (!isRecording || macroMode !== 'via') return;
+    if (!isRecording) return;
     const allKeys = [...HALVES.left, ...HALVES.right];
 
     const id = setInterval(async () => {
@@ -284,12 +300,11 @@ export default function MacroEditor({ device, addDebugLog, reloadKey = 0, extraM
             }
           }
           if (newTaps.length > 0) {
-            setMacros(prev => {
+            setActiveList(prev => {
               const next = prev.map((m, i) => i === selectedMacro ? [...m] : m);
               next[selectedMacro] = [...next[selectedMacro], ...newTaps];
               return next;
             });
-            setDirty(true);
           }
         }
 
@@ -301,7 +316,7 @@ export default function MacroEditor({ device, addDebugLog, reloadKey = 0, extraM
     }, 60);
 
     return () => clearInterval(id);
-  }, [isRecording, selectedMacro, macroMode]);
+  }, [isRecording, selectedMacro, setActiveList]);
 
   // ── Generated C code (compile mode) ─────────────────────────────────────────
 
@@ -364,21 +379,21 @@ export default function MacroEditor({ device, addDebugLog, reloadKey = 0, extraM
           {macroMode === 'via' && status && (
             <span className={`macro-status${status.startsWith('Save') || status.startsWith('Load') ? ' error' : ''}`}>{status}</span>
           )}
+          <button
+            className={isRecording ? 'record-btn-active' : ''}
+            onClick={isRecording ? stopRecording : startRecording}
+            title={isRecording ? 'Stop recording keystrokes' : 'Record keystrokes into this macro slot'}
+          >
+            {isRecording ? 'Stop' : 'Record'}
+          </button>
           {macroMode === 'via' && (
             <>
-              <button
-                className={isRecording ? 'record-btn-active' : ''}
-                onClick={isRecording ? stopRecording : startRecording}
-                title={isRecording ? 'Stop recording keystrokes' : 'Record keystrokes into this macro slot'}
-              >
-                {isRecording ? 'Stop' : 'Record'}
-              </button>
               <button onClick={load} disabled={isRecording}>Reload</button>
               <button className={dirty ? 'primary' : ''} onClick={handleSave} disabled={!dirty || isRecording}>Save to keyboard</button>
             </>
           )}
           {macroMode === 'compile' && (
-            <button onClick={() => setShowCodeModal(true)}>Generate C Code</button>
+            <button onClick={() => setShowCodeModal(true)} disabled={isRecording}>Generate C Code</button>
           )}
         </div>
       </div>
@@ -394,7 +409,7 @@ export default function MacroEditor({ device, addDebugLog, reloadKey = 0, extraM
           className={`macro-mode-tab${macroMode === 'compile' ? ' active' : ''}`}
           onClick={() => handleModeChange('compile')}
         >
-          Compile Macros
+          QMK Macros
         </button>
       </div>
 
@@ -417,9 +432,16 @@ export default function MacroEditor({ device, addDebugLog, reloadKey = 0, extraM
         {/* Center: Action list */}
         <div className="macro-center">
           <div className="macro-center-title">
-            {macroMode === 'via'
-              ? `M(${selectedMacro}) — assign keycodes M(0)–M(${macroCount - 1}) to keys to trigger`
-              : `MU(${selectedMacro}) — assign MU(0)–MU(31) to keys; requires a firmware compile`}
+            <input
+              className="macro-desc-input"
+              value={currentDescription}
+              onChange={e => handleDescriptionChange(e.target.value)}
+              disabled={isRecording}
+              placeholder={`${macroMode === 'via' ? `M(${selectedMacro})` : `MU(${selectedMacro})`} — add a description…`}
+              title={macroMode === 'via'
+                ? `Saved with the profile. Assign M(0)–M(${macroCount - 1}) to keys to trigger.`
+                : 'Saved with the profile. Assign MU(0)–MU(31) to keys; requires a firmware compile.'}
+            />
           </div>
 
           <div className="macro-actions">

@@ -415,7 +415,8 @@ export default function App() {
       lighting_perkey: lightingPerKeyColors, scroll_settings: scrollSettings,
       layer_count: layerCount, layer_names: layerNames,
       tap_dance_keys: tapDanceKeys, td_key_assignments: tdKeyAssignments,
-      custom_labels: customLabels, extra_macros: extraMacros };
+      custom_labels: customLabels, extra_macros: extraMacros,
+      macro_descriptions: macroDescriptions };
   };
   // Keep ref current so handleSave always calls the latest snapshot, avoiding stale closure.
   buildProfileRef.current = buildProfile;
@@ -472,6 +473,7 @@ export default function App() {
       setTdKeyAssignments([]);
       setCustomLabels({});
       setExtraMacros(Array.from({ length: 32 }, () => []));
+      setMacroDescriptions({ via: {}, qmk: {} });
       allKeymapsRef.current = [];
       setCurrentFilePath(path);
       setIsDirty(false);
@@ -499,6 +501,9 @@ export default function App() {
   // Compile-time macros, MU(0)-MU(31). Each slot is an array of action objects
   // matching the VIA macro action shape ({type, keycode|value|ms}).
   const [extraMacros, setExtraMacros] = useState(() => Array.from({ length: 32 }, () => []));
+  // Per-slot macro descriptions, keyed by slot index, kept separately per macro
+  // mode ('via' = M(n) slots, 'qmk' = MU(n) compile-time slots).
+  const [macroDescriptions, setMacroDescriptions] = useState(() => ({ via: {}, qmk: {} }));
 
   // Wrapped setters that also mark the profile dirty so the UI reflects unsaved changes.
   const handlePerKeyColorsChange = useCallback((colors) => {
@@ -519,6 +524,10 @@ export default function App() {
   }, []);
   const handleExtraMacrosChange = useCallback((updater) => {
     setExtraMacros(prev => (typeof updater === 'function' ? updater(prev) : updater));
+    setIsDirty(true);
+  }, []);
+  const handleMacroDescriptionsChange = useCallback((updater) => {
+    setMacroDescriptions(prev => (typeof updater === 'function' ? updater(prev) : updater));
     setIsDirty(true);
   }, []);
 
@@ -768,6 +777,13 @@ export default function App() {
         setExtraMacros(restored);
         addDebugLog('Extra macros restored');
       }
+      if (profile.macro_descriptions && typeof profile.macro_descriptions === 'object') {
+        setMacroDescriptions({
+          via: profile.macro_descriptions.via ?? {},
+          qmk: profile.macro_descriptions.qmk ?? {},
+        });
+        addDebugLog('Macro descriptions restored');
+      }
       await loadKeymap(currentLayer);
       setCurrentFilePath(path);
       setIsDirty(false);
@@ -821,11 +837,12 @@ export default function App() {
             {layerCount > 4 && (
               <div className="header-layer-dropdown-wrap" ref={layerDropdownRef}>
                 <button
-                  className={`header-layer-btn${currentLayer >= 4 ? ' active' : ''}`}
+                  className={`header-layer-btn header-layer-more${currentLayer >= 4 ? ' active' : ''}`}
                   onClick={() => setShowLayerDropdown(v => !v)}
                   title="More layers"
                 >
-                  {currentLayer >= 4 ? currentLayer : '▾'}
+                  {currentLayer >= 4 && <span>{currentLayer}</span>}
+                  <span className={`header-layer-caret${showLayerDropdown ? ' open' : ''}`}>▾</span>
                 </button>
                 {showLayerDropdown && (
                   <div className="header-layer-dropdown">
@@ -858,6 +875,16 @@ export default function App() {
         <div className="header-title">
           <h1>IRIS-LM</h1>
           <span className="subtitle">Keyboard Configuration System</span>
+          <div className="header-file-status">
+            {currentFilePath ? (
+              <>
+                <span className="header-filename">{currentFilePath.split(/[\\/]/).pop()}</span>
+                {isDirty && <span className="header-dirty-dot" title="Unsaved changes">●</span>}
+              </>
+            ) : (
+              <span className="header-filename header-filename--none">No profile open</span>
+            )}
+          </div>
         </div>
 
         <div className="header-status">
@@ -883,16 +910,6 @@ export default function App() {
           <button onClick={handleCopyLayer} disabled={!selectedDevice || !keymap.length} title="Copy this layer's keycodes into clipboard">Copy</button>
           <button onClick={handlePasteLayer} disabled={!selectedDevice || !copiedLayer} title="Paste copied layer keycodes here">Paste</button>
           <button onClick={handleClearLayer} disabled={!selectedDevice} title="Set all keys to transparent (KC_TRNS)">Clear</button>
-        </div>
-        <div className="toolbar-file-status">
-          {currentFilePath ? (
-            <>
-              <span className="toolbar-filename">{currentFilePath.split(/[\\/]/).pop()}</span>
-              {isDirty && <span className="toolbar-dirty-dot" title="Unsaved changes">●</span>}
-            </>
-          ) : (
-            <span className="toolbar-filename toolbar-filename--none">No profile open</span>
-          )}
         </div>
         <div className="layer-toolbar-group">
           <button onClick={handleNew} title="Create a new profile file">New</button>
@@ -1054,6 +1071,8 @@ export default function App() {
                   extraMacros={extraMacros}
                   onExtraMacrosChange={handleExtraMacrosChange}
                   extraMacrosFilePath={extraMacrosFilePath}
+                  macroDescriptions={macroDescriptions}
+                  onMacroDescriptionsChange={handleMacroDescriptionsChange}
                 />
               )}
               {activeTab === 'tapdance' && <TapDanceEditor device={selectedDevice} />}
