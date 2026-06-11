@@ -220,6 +220,10 @@ struct KeyboardProfile {
     extra_macros:     Option<serde_json::Value>,   // compile-time MU(n) macro action lists
     #[serde(default, skip_serializing_if = "Option::is_none")]
     macro_descriptions: Option<serde_json::Value>, // { via: {slot: text}, qmk: {slot: text} }
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    tap_dance_descriptions: Option<serde_json::Value>, // { [slot]: text }
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    combo_descriptions: Option<serde_json::Value>, // { [slot]: text }
 }
 
 /// Wrapper returned by load_profile so the frontend knows which path was opened.

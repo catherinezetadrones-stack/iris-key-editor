@@ -485,6 +485,7 @@ export default function MacroEditor({ device, addDebugLog, reloadKey = 0, extraM
           <KeyPicker
             onSelect={handlePickerSelect}
             focusRequest={pickerRequest}
+            macroDescriptions={macroDescriptions}
           />
         </div>
       </div>

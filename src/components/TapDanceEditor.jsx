@@ -122,7 +122,7 @@ function EntryEditor({ entry, activeField, onFieldClick, onChange }) {
 
 const EMPTY_ENTRY = { on_tap: 0, on_hold: 0, on_double_tap: 0, on_tap_hold: 0, tapping_term_ms: 0 };
 
-export default function TapDanceEditor({ device }) {
+export default function TapDanceEditor({ device, tapDanceDescriptions, macroDescriptions }) {
   const [vialStatus, setVialStatus]   = useState(null);
   const [entries, setEntries]         = useState([]);
   const [selected, setSelected]       = useState(0);
@@ -281,6 +281,8 @@ export default function TapDanceEditor({ device }) {
           <KeyPicker
             onSelect={(code) => updateEntry({ ...currentEntry, [activeField.key]: code })}
             focusRequest={pickerRequest}
+            macroDescriptions={macroDescriptions}
+            tapDanceDescriptions={tapDanceDescriptions}
           />
         </div>
       </div>

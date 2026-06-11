@@ -7,6 +7,22 @@
   flex-direction: column;
 }
 
+.key-picker-description {
+  flex-shrink: 0;
+  box-sizing: border-box;
+  height: 50px;
+  padding: 8px 12px;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 .key-picker-body {
   display: flex;
   flex: 1;

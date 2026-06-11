@@ -416,7 +416,9 @@ export default function App() {
       layer_count: layerCount, layer_names: layerNames,
       tap_dance_keys: tapDanceKeys, td_key_assignments: tdKeyAssignments,
       custom_labels: customLabels, extra_macros: extraMacros,
-      macro_descriptions: macroDescriptions };
+      macro_descriptions: macroDescriptions,
+      tap_dance_descriptions: tapDanceDescriptions,
+      combo_descriptions: comboDescriptions };
   };
   // Keep ref current so handleSave always calls the latest snapshot, avoiding stale closure.
   buildProfileRef.current = buildProfile;
@@ -474,6 +476,8 @@ export default function App() {
       setCustomLabels({});
       setExtraMacros(Array.from({ length: 32 }, () => []));
       setMacroDescriptions({ via: {}, qmk: {} });
+      setTapDanceDescriptions({});
+      setComboDescriptions({});
       allKeymapsRef.current = [];
       setCurrentFilePath(path);
       setIsDirty(false);
@@ -504,6 +508,10 @@ export default function App() {
   // Per-slot macro descriptions, keyed by slot index, kept separately per macro
   // mode ('via' = M(n) slots, 'qmk' = MU(n) compile-time slots).
   const [macroDescriptions, setMacroDescriptions] = useState(() => ({ via: {}, qmk: {} }));
+  // Per-slot tap dance descriptions, keyed by TD(n) slot index.
+  const [tapDanceDescriptions, setTapDanceDescriptions] = useState(() => ({}));
+  // Per-slot combo descriptions, keyed by combo slot index.
+  const [comboDescriptions, setComboDescriptions] = useState(() => ({}));
 
   // Wrapped setters that also mark the profile dirty so the UI reflects unsaved changes.
   const handlePerKeyColorsChange = useCallback((colors) => {
@@ -528,6 +536,14 @@ export default function App() {
   }, []);
   const handleMacroDescriptionsChange = useCallback((updater) => {
     setMacroDescriptions(prev => (typeof updater === 'function' ? updater(prev) : updater));
+    setIsDirty(true);
+  }, []);
+  const handleTapDanceDescriptionsChange = useCallback((updater) => {
+    setTapDanceDescriptions(prev => (typeof updater === 'function' ? updater(prev) : updater));
+    setIsDirty(true);
+  }, []);
+  const handleComboDescriptionsChange = useCallback((updater) => {
+    setComboDescriptions(prev => (typeof updater === 'function' ? updater(prev) : updater));
     setIsDirty(true);
   }, []);
 
@@ -784,6 +800,14 @@ export default function App() {
         });
         addDebugLog('Macro descriptions restored');
       }
+      if (profile.tap_dance_descriptions && typeof profile.tap_dance_descriptions === 'object') {
+        setTapDanceDescriptions(profile.tap_dance_descriptions);
+        addDebugLog('Tap dance descriptions restored');
+      }
+      if (profile.combo_descriptions && typeof profile.combo_descriptions === 'object') {
+        setComboDescriptions(profile.combo_descriptions);
+        addDebugLog('Combo descriptions restored');
+      }
       await loadKeymap(currentLayer);
       setCurrentFilePath(path);
       setIsDirty(false);
@@ -985,6 +1009,8 @@ export default function App() {
                         keyLedColors={keyLedColors}
                         keyBadges={tapDanceBadges}
                         customLabels={customLabels}
+                        macroDescriptions={macroDescriptions}
+                        tapDanceDescriptions={tapDanceDescriptions}
                       />
                     </div>
                     <div className="editor-right">
@@ -1029,6 +1055,8 @@ export default function App() {
                           <KeyPicker
                             onSelect={applyKeycodeToSelection}
                             focusRequest={pickerRequest}
+                            macroDescriptions={macroDescriptions}
+                            tapDanceDescriptions={tapDanceDescriptions}
                           />
                         </>
                       )}
@@ -1057,6 +1085,8 @@ export default function App() {
                           tapDanceFilePath={tapDanceFilePath}
                           tdKeyAssignments={tdKeyAssignments}
                           onTdKeyAssignmentsChange={handleTdKeyAssignmentsChange}
+                          tapDanceDescriptions={tapDanceDescriptions}
+                          onTapDanceDescriptionsChange={handleTapDanceDescriptionsChange}
                         />
                       )}
                     </div>
@@ -1075,8 +1105,22 @@ export default function App() {
                   onMacroDescriptionsChange={handleMacroDescriptionsChange}
                 />
               )}
-              {activeTab === 'tapdance' && <TapDanceEditor device={selectedDevice} />}
-              {activeTab === 'combos'   && <CombosEditor  device={selectedDevice} />}
+              {activeTab === 'tapdance' && (
+                <TapDanceEditor
+                  device={selectedDevice}
+                  tapDanceDescriptions={tapDanceDescriptions}
+                  macroDescriptions={macroDescriptions}
+                />
+              )}
+              {activeTab === 'combos'   && (
+                <CombosEditor
+                  device={selectedDevice}
+                  comboDescriptions={comboDescriptions}
+                  onComboDescriptionsChange={handleComboDescriptionsChange}
+                  macroDescriptions={macroDescriptions}
+                  tapDanceDescriptions={tapDanceDescriptions}
+                />
+              )}
               {activeTab === 'lighting' && (
                 <LightingPanel
                   device={selectedDevice}

@@ -4,7 +4,7 @@
 import React, { useState } from 'react';
 import './KeyButton.css';
 
-export default function KeyButton({ keyName, keyBadge, subLabel, tertiaryLabel, isSelected, onClick, isThumb = false, glowColor }) {
+export default function KeyButton({ keyName, keyBadge, subLabel, tertiaryLabel, isSelected, onClick, isThumb = false, glowColor, tooltip }) {
   const [isPressed, setIsPressed] = useState(false);
 
   const handleMouseDown = () => {
@@ -35,7 +35,7 @@ export default function KeyButton({ keyName, keyBadge, subLabel, tertiaryLabel, 
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
-      title={keyName}
+      title={tooltip || keyName}
     >
       {keyBadge && <span className="key-badge">{keyBadge}</span>}
       {subLabel && <span className="key-sublabel">{subLabel}</span>}

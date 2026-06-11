@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { decodeQuantum, getSecondary } from '../keyboardLayout';
+import { resolveKeyDescription } from '../keycodeDescriptions';
 import './KeyPicker.css';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -250,10 +251,11 @@ const ALL_KEYS = KEY_CATEGORIES.flatMap((c) => c.keys);
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function KeyPicker({ onSelect, focusRequest }) {
+export default function KeyPicker({ onSelect, focusRequest, macroDescriptions, tapDanceDescriptions }) {
   const [category, setCategory] = useState('Numbers');
   const [search, setSearch] = useState('');
   const [highlightCode, setHighlightCode] = useState(null);
+  const [hoveredCode, setHoveredCode] = useState(null);
   const highlightTimerRef = useRef(null);
 
   const clearHighlight = () => {
@@ -286,8 +288,13 @@ export default function KeyPicker({ onSelect, focusRequest }) {
     ? ALL_KEYS.filter((k) => k.name.toLowerCase().includes(search.toLowerCase()))
     : (KEY_CATEGORIES.find((c) => c.name === category)?.keys ?? []);
 
+  // Hovering a key takes priority; otherwise fall back to the currently-focused key.
+  const descriptionCode = hoveredCode ?? focusRequest?.code ?? null;
+  const description = resolveKeyDescription(descriptionCode, macroDescriptions, tapDanceDescriptions);
+
   return (
     <div className="key-picker">
+      <div className="key-picker-description" title={description}>{description}</div>
       <div className="key-picker-body">
 
         <div className="key-picker-left">
@@ -322,6 +329,8 @@ export default function KeyPicker({ onSelect, focusRequest }) {
                 className={`picker-key${highlightCode === key.code ? ' highlighted' : ''}`}
                 data-keycode={key.code}
                 onClick={() => { onSelect(key.code); clearHighlight(); }}
+                onMouseEnter={() => setHoveredCode(key.code)}
+                onMouseLeave={() => setHoveredCode(null)}
               >
                 {sub && <span className="picker-key-sub">{sub}</span>}
                 {key.name}

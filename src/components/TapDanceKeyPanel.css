@@ -253,6 +253,34 @@
   margin-top: 4px;
 }
 
+.td-key-desc-input {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 4px 7px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  border-radius: 2px;
+}
+
+.td-key-desc-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.td-key-desc-input::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.6;
+}
+
+.td-key-desc-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .td-remove-btn {
   margin: 0 14px 10px;
   padding: 4px 10px;

@@ -119,7 +119,7 @@ function ComboEntryEditor({ entry, activeField, onFieldClick, onChange }) {
 
 const EMPTY_ENTRY = { keys: [0, 0, 0, 0], output: 0 };
 
-export default function CombosEditor({ device }) {
+export default function CombosEditor({ device, comboDescriptions, onComboDescriptionsChange, macroDescriptions, tapDanceDescriptions }) {
   const [vialStatus, setVialStatus] = useState(null);
   const [entries, setEntries]       = useState([]);
   const [selected, setSelected]     = useState(0);
@@ -175,6 +175,19 @@ export default function CombosEditor({ device }) {
   };
 
   const currentEntry = entries[selected] ?? EMPTY_ENTRY;
+
+  // Per-slot description, persisted with the profile by the parent.
+  const currentDescription = comboDescriptions?.[selected] ?? '';
+
+  const handleDescriptionChange = (text) => {
+    onComboDescriptionsChange?.(prev => {
+      const base = prev && typeof prev === 'object' ? prev : {};
+      const next = { ...base };
+      if (text) next[selected] = text;
+      else delete next[selected];
+      return next;
+    });
+  };
 
   const currentFieldCode = activeField
     ? activeField.type === 'output'
@@ -293,6 +306,13 @@ export default function CombosEditor({ device }) {
         <div className="combo-main">
           <div className="combo-slot-title">
             Combo {selected} — press all input keys simultaneously to send the output
+            <input
+              className="combo-desc-input"
+              value={currentDescription}
+              onChange={e => handleDescriptionChange(e.target.value)}
+              placeholder={`Combo ${selected} — add a description…`}
+              title="Saved with the profile."
+            />
           </div>
           <ComboEntryEditor
             entry={currentEntry}
@@ -314,6 +334,8 @@ export default function CombosEditor({ device }) {
           <KeyPicker
             onSelect={handlePickerSelect}
             focusRequest={pickerRequest}
+            macroDescriptions={macroDescriptions}
+            tapDanceDescriptions={tapDanceDescriptions}
           />
         </div>
       </div>

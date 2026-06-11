@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import KeyButton from './KeyButton';
 import { HALVES, decodeQuantum, getSecondary } from '../keyboardLayout';
+import { resolveKeyDescription } from '../keycodeDescriptions';
 import './KeyboardGrid.css';
 
 function labelFor(key, keymap, customLabels, currentLayer) {
@@ -17,7 +18,7 @@ function labelFor(key, keymap, customLabels, currentLayer) {
   return `0x${code.toString(16).padStart(4, '0')}`;
 }
 
-export default function KeyboardGrid({ keymap, currentLayer, selectedKey, selectedKeys, onKeySelect, onKeyRightClick, keyLedColors, keyBadges, customLabels }) {
+export default function KeyboardGrid({ keymap, currentLayer, selectedKey, selectedKeys, onKeySelect, onKeyRightClick, keyLedColors, keyBadges, customLabels, macroDescriptions, tapDanceDescriptions }) {
   const handleKeyClick = (e, viaRow, viaCol) => {
     onKeySelect?.({ row: viaRow, col: viaCol }, e.shiftKey);
   };
@@ -57,6 +58,7 @@ export default function KeyboardGrid({ keymap, currentLayer, selectedKey, select
                 isSelected={!!selectedKeys?.has(`${key.viaRow},${key.viaCol}`)}
                 onClick={(e) => handleKeyClick(e, key.viaRow, key.viaCol)}
                 glowColor={keyLedColors?.get(key.id)}
+                tooltip={resolveKeyDescription(keymap?.[key.viaRow]?.[key.viaCol], macroDescriptions, tapDanceDescriptions)}
               />
             </div>
           );

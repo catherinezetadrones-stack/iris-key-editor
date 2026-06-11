@@ -36,6 +36,15 @@ and summarize what changed.
 
 _Straightforward changes to the existing interface_
 
+- **Descriptions for Tap Dance** - I want to be able to add a description in the Tap Dance panel on the editor page. This should also be stored in the users keymap profile.
+
+- **Descriptions for Combos** - I want to be able to add a description in the Combos tab, try to match the same position we did on the Macros tab. This should also be stored in the users keymap profile.
+
+- **Descriptions on Keys in Key Picker** - In VIA they show descriptions for what keycodes. For example if `TO(0)` is selected, a description would be something like "Activates Layer, go 'TO' layer". We can use the QMK firmware docs to get the descriptions and then shorten or simplify them if it makes sense. The QMK keycodes are located here `https://docs.qmk.fm/keycodes`. This description should show in the key picker portion of the panel at the top, it should not scroll with the keys and it should have a default message if no key is selected.
+The only overrides for these descriptions should be the descriptions we write to the user keymap profile for Macros and Tap Dance if they are present.
+
+- **Enhanced Tooltips for editor keyboard** - Use the descriptions from the [previous task](Descriptions on Keys in Key Picker) to show as tooltip in the keyboard. Again, the only overrides to the descriptions are the custom ones we write to the user keymap profile for Macros and Tap Dance.
+
 
 ### New App Features
 
@@ -47,10 +56,3 @@ _Require knowledge about firmware and may require web access for research_
 
 **In-app compilation (bundled, keyboard-specific)**
 _Phase 1 complete: compile via external QMK MSYS2 install with real-time log streaming in the Firmware tab._
-
-Phase 2 goal: make the full compile → bootload → flash cycle self-contained and seamless — no additional software installs required on any Windows machine.
-
-- **Bundle the toolchain and QMK sources.** Ship the ARM toolchain and all QMK/vial-qmk source files needed for `keebio/iris_lm/k1 vial` directly inside the app. Our generated `.c` files (`keymap.c`, `keymap_layers.c`, `per_key_colors.c`, `tap_dance_keys.c`, `scroll_text.c`, `extra_macros.c`) should be written into this bundled source tree before each compile so the output always reflects the current app state. All environment management and setup should be configured through the App.
-- **One-click compile All custom `c.` code → flash.** After a successful compile, auto-detect the keyboard's DFU bootloader port, invoke the bundled flash tool, and flash the keyboard without intermediate prompts. If bootload mode can be automated this is preferred otherwise the user will only need to prompted to trigger bootloader mode.
-- **Progress and error reporting.** Real-time streaming output (already in place for compile) should extend through the flash step, with clear per-half success/failure indicators.
-

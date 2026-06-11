@@ -31,7 +31,7 @@ function TdCodeModal({ code, onClose, copied, onCopy, tapDanceFilePath, onSave, 
   );
 }
 
-export default function TapDanceKeyPanel({ selectedKey, currentLayer, tapDanceKeys, onTapDanceKeysChange, tapDanceFilePath, tdKeyAssignments = [], onTdKeyAssignmentsChange }) {
+export default function TapDanceKeyPanel({ selectedKey, currentLayer, tapDanceKeys, onTapDanceKeysChange, tapDanceFilePath, tdKeyAssignments = [], onTdKeyAssignmentsChange, tapDanceDescriptions, onTapDanceDescriptionsChange }) {
   const [activeTdField, setActiveTdField] = useState(null);
   const [pickerRequest, setPickerRequest]   = useState(null);
   const [showCodeModal, setShowCodeModal]   = useState(false);
@@ -72,6 +72,19 @@ export default function TapDanceKeyPanel({ selectedKey, currentLayer, tapDanceKe
 
   // Index of this key in tdKeyAssignments (-1 if not assigned)
   const currentAssignedIndex = tdKeyAssignments.findIndex(a => a?.keyId === keyId);
+
+  // Description for the assigned TD(n) slot, persisted with the profile.
+  const currentDescription = tapDanceDescriptions?.[currentAssignedIndex] ?? '';
+
+  const handleDescriptionChange = (text) => {
+    onTapDanceDescriptionsChange?.(prev => {
+      const base = prev && typeof prev === 'object' ? prev : {};
+      const next = { ...base };
+      if (text) next[currentAssignedIndex] = text;
+      else delete next[currentAssignedIndex];
+      return next;
+    });
+  };
 
   // Reset assignment input when selected key changes.
   // suggestedIndex is intentionally omitted from deps: stale suggestions between
@@ -192,6 +205,16 @@ export default function TapDanceKeyPanel({ selectedKey, currentLayer, tapDanceKe
                 <span className="td-key-badge">TD({currentAssignedIndex})</span>
               )}
             </div>
+            <input
+              className="td-key-desc-input"
+              value={currentDescription}
+              onChange={e => handleDescriptionChange(e.target.value)}
+              disabled={currentAssignedIndex < 0}
+              placeholder={currentAssignedIndex >= 0
+                ? `TD(${currentAssignedIndex}) — add a description…`
+                : 'Assign a TD(n) slot below to add a description'}
+              title={currentAssignedIndex >= 0 ? 'Saved with the profile.' : 'Assign this key to a TD(n) slot first.'}
+            />
           </div>
 
           <div className="td-fields">
@@ -233,7 +256,7 @@ export default function TapDanceKeyPanel({ selectedKey, currentLayer, tapDanceKe
 
           {hasAny && (
             <div className="td-assign-section">
-              <span className="td-assign-label">VIA Keymap Assignment</span>
+              <span className="td-assign-label">Keymap Assignment</span>
               {currentAssignedIndex >= 0 ? (
                 <div className="td-assign-row">
                   <span className="td-assign-badge">TD({currentAssignedIndex})</span>
