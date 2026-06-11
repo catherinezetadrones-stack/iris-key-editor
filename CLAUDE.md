@@ -9,6 +9,7 @@ This app targets only the Iris LM-K — no other keyboard is in scope.
 
 - Communicates with the keyboard over the VIA/HID protocol — no firmware flashing required for remapping
 - Generates QMK `.c` source files and writes them to the correct build directories
+- Compiles and flashes firmware in-app via a self-contained bundled toolchain (one-click Build & Flash in the Firmware tab)
 - End-to-end verified on real hardware: device detection, keymap read, key remap via KeySelector, and EEPROM write all confirmed working
 
 ---
@@ -16,7 +17,7 @@ This app targets only the Iris LM-K — no other keyboard is in scope.
 ## Stack
 
 - **Frontend:** Vite 4 + React (scaffolded with `create-vite@4` due to Node 18 constraint)
-- **Backend:** Tauri v1 + Rust (`hidapi`, `via_protocol`, `usb_handler`, `dfu_flasher`)
+- **Backend:** Tauri v1 + Rust (`hidapi`, `via_protocol`, `usb_handler`, `dfu_flasher`, `fw_env`)
 - **Node.js:** v18.20.8 — do not use `create-vite@latest` if ever re-scaffolding; use `create-vite@4`
 
 ---
@@ -33,7 +34,7 @@ npm run tauri dev
 
 **Bash:**
 ```bash
-export PATH="$PATH:/c/Users/phbronson/.cargo\bin" && npm run tauri dev
+export PATH="$PATH:/c/Users/phbronson/.cargo/bin" && npm run tauri dev
 ```
 
 ---
@@ -52,6 +53,12 @@ export PATH="$PATH:/c/Users/phbronson/.cargo\bin" && npm run tauri dev
 **Code generation:**
 - `.c` source file generation is already implemented and writes to the correct directories
 - The Firmware tab UI for compilation is already designed — do not redesign it, only extend its functionality
+
+**Firmware source tree (authoritative):**
+- The bundled build environment at `%LOCALAPPDATA%\iris-key-editor\fw-env\vial-qmk\` is the authoritative firmware tree — all keymap/firmware edits go there (keymap dir: `keyboards\keebio\iris_lm\keymaps\vial\`)
+- Do NOT edit `C:\Users\phbronson\vial-qmk\` — that older standalone checkout is no longer the source of truth
+- `keymap.c` is hand-maintained in the bundled tree; the app only overwrites the generated sources (`keymap_layers.c`, `per_key_colors.c`, `scroll_text.c`, `tap_dance_keys.c`, `extra_macros.c`)
+- The Build & Flash wizard compiles this tree via `compile_bundled` (bundled MSYS2 toolchain)
 
 ---
 

@@ -408,6 +408,13 @@ impl ViaKeyboard {
 
     /// Ask the keyboard to reboot into its bootloader (for firmware flashing).
     /// Remapping never needs this — it's only for firmware updates.
+    ///
+    /// Ok(()) only means the command was sent. VIAL_INSECURE firmware compiles out
+    /// VIA's id_bootloader_jump handler, so unless the keymap overrides
+    /// raw_hid_receive_kb to handle 0x0B (ours does, since 2026-06), the board just
+    /// echoes the report back — byte-identical to the handled case, so the response
+    /// can't tell us whether a reboot is coming. The only reliable confirmation is
+    /// polling check_dfu_device afterwards, which is what the frontend does.
     pub fn jump_bootloader(&self) -> Result<(), String> {
         // Device resets and won't reply; ignore the (expected) read timeout.
         let _ = self.command(&[cmd::BOOTLOADER_JUMP]);

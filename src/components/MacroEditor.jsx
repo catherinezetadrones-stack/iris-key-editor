@@ -14,7 +14,7 @@ function hidName(hid) {
 
 // ── Action row component ─────────────────────────────────────────────────────
 
-function ActionRow({ action, index, onUpdate, onRemove, onKeyClick, isActive, validateText }) {
+function ActionRow({ action, index, onUpdate, onRemove, onKeyClick, isActive, validateText, disabled }) {
   const { type } = action;
 
   const handleTypeChange = (e) => {
@@ -34,7 +34,7 @@ function ActionRow({ action, index, onUpdate, onRemove, onKeyClick, isActive, va
 
   return (
     <div className="action-row">
-      <select value={type} onChange={handleTypeChange} className="action-type-sel">
+      <select value={type} onChange={handleTypeChange} className="action-type-sel" disabled={disabled}>
         <option value="text">Text</option>
         <option value="tap">Tap key</option>
         <option value="down">Key down</option>
@@ -47,6 +47,7 @@ function ActionRow({ action, index, onUpdate, onRemove, onKeyClick, isActive, va
           className={`action-input${textInvalid ? ' invalid' : ''}`}
           value={action.value}
           onChange={e => onUpdate(index, { ...action, value: e.target.value })}
+          disabled={disabled}
           placeholder="text to type…"
           title={textInvalid ? 'Contains characters not supported by SEND_STRING (printable ASCII, newline, tab only)' : undefined}
         />
@@ -55,6 +56,7 @@ function ActionRow({ action, index, onUpdate, onRemove, onKeyClick, isActive, va
         <button
           className={`macro-kc-btn${isActive ? ' active-field' : ''}`}
           onClick={() => onKeyClick(index, action.keycode)}
+          disabled={disabled}
         >
           {hidName(action.keycode)}
         </button>
@@ -68,12 +70,13 @@ function ActionRow({ action, index, onUpdate, onRemove, onKeyClick, isActive, va
             max={9999}
             value={action.ms}
             onChange={e => onUpdate(index, { ...action, ms: parseInt(e.target.value, 10) || 0 })}
+            disabled={disabled}
           />
           <span className="action-unit">ms</span>
         </div>
       )}
 
-      <button className="action-remove-btn" onClick={() => onRemove(index)} title="Remove action">×</button>
+      <button className="action-remove-btn" onClick={() => onRemove(index)} title="Remove action" disabled={disabled}>×</button>
     </div>
   );
 }
@@ -267,6 +270,9 @@ export default function MacroEditor({ device, addDebugLog, reloadKey = 0, extraM
       const snapshot = await invoke('read_keymap', { layer: 0 });
       layer0SnapshotRef.current = snapshot;
       prevMatrixRef.current = null;
+      // Deactivate the picker target so KeyPicker clicks can't edit actions mid-recording
+      setActiveAction(null);
+      setPickerRequest(null);
       setIsRecording(true);
     } catch (err) {
       log(`Recorder: failed to read layer 0 — ${err}`);
@@ -381,7 +387,15 @@ export default function MacroEditor({ device, addDebugLog, reloadKey = 0, extraM
           )}
           <button
             className={isRecording ? 'record-btn-active' : ''}
-            onClick={isRecording ? stopRecording : startRecording}
+            onClick={(e) => {
+              // Drop focus so a later Enter/Space doesn't re-trigger this button
+              e.currentTarget.blur();
+              if (isRecording) {
+                stopRecording();
+              } else {
+                startRecording();
+              }
+            }}
             title={isRecording ? 'Stop recording keystrokes' : 'Record keystrokes into this macro slot'}
           >
             {isRecording ? 'Stop' : 'Record'}
@@ -402,12 +416,14 @@ export default function MacroEditor({ device, addDebugLog, reloadKey = 0, extraM
         <button
           className={`macro-mode-tab${macroMode === 'via' ? ' active' : ''}`}
           onClick={() => handleModeChange('via')}
+          disabled={isRecording}
         >
           VIA Macros
         </button>
         <button
           className={`macro-mode-tab${macroMode === 'compile' ? ' active' : ''}`}
           onClick={() => handleModeChange('compile')}
+          disabled={isRecording}
         >
           QMK Macros
         </button>
@@ -459,14 +475,15 @@ export default function MacroEditor({ device, addDebugLog, reloadKey = 0, extraM
                 onKeyClick={handleKeyClick}
                 isActive={activeAction === i}
                 validateText={macroMode === 'compile' ? isSendStringSafe : null}
+                disabled={isRecording}
               />
             ))}
 
             <div className="macro-add-row">
               <span className="macro-add-label">Add:</span>
-              <button onClick={() => addAction('text')}>Text</button>
-              <button onClick={() => addAction('tap')}>Tap key</button>
-              <button onClick={() => addAction('delay')}>Delay</button>
+              <button onClick={() => addAction('text')} disabled={isRecording}>Text</button>
+              <button onClick={() => addAction('tap')} disabled={isRecording}>Tap key</button>
+              <button onClick={() => addAction('delay')} disabled={isRecording}>Delay</button>
             </div>
 
             {macroMode === 'via' && (

@@ -70,6 +70,7 @@ export default function FirmwarePanel({
   scrollSettings,
   tapDanceKeys,
   extraMacros,
+  profileLoaded = false,
 }) {
   const [vialStatus, setVialStatus]     = useState(null);
   const [dfuPresent, setDfuPresent]     = useState(false);
@@ -181,7 +182,7 @@ export default function FirmwarePanel({
   // the manual Write Keymap Source step), then generate every .c source.
   const generateSources = async () => {
     const localMaps = [...(allKeymapsRef?.current ?? [])];
-    if (device) {
+    if (device && !profileLoaded) {
       try {
         const firmwareLayers = await invoke('read_all_layers');
         for (let l = 0; l < firmwareLayers.length; l++) {
@@ -191,6 +192,8 @@ export default function FirmwarePanel({
       } catch (err) {
         addLog(`Could not read from keyboard — using cached layers: ${err}`);
       }
+    } else if (profileLoaded) {
+      addLog('Profile loaded — using its layers (not reading from the keyboard)');
     }
     return buildAllSources({
       allKeymaps: localMaps,
@@ -236,21 +239,31 @@ export default function FirmwarePanel({
     if (!dfu) {
       addLog(`Waiting for half ${half} in bootloader mode (up to 2 min)…`);
       addLog('If nothing happens: plug the half in over USB — it will be rebooted into the bootloader automatically.');
-      let jumped = false;
+      // The jump command can be lost (USB hiccup, board busy) and firmware without
+      // the raw_hid_receive_kb bootloader handler just echoes it — so re-send every
+      // 10s while the board is still visible over VIA and DFU hasn't appeared.
+      let jumpAttempts = 0;
+      let lastJumpAt = -Infinity;
       for (let i = 0; i < 120 && !wizardCancelRef.current; i++) {
         dfu = await invoke('check_dfu_device').catch(() => false);
         if (dfu) break;
-        if (!jumped) {
+        if (i - lastJumpAt >= 10) {
           try {
             const devices = await invoke('detect_devices');
             if (devices?.length) {
               await invoke('jump_bootloader');
-              jumped = true;
-              addLog('Keyboard detected — jumping to bootloader…');
+              jumpAttempts++;
+              lastJumpAt = i;
+              addLog(jumpAttempts === 1
+                ? 'Keyboard detected — jumping to bootloader…'
+                : `Still no DFU device — re-sending bootloader jump (attempt ${jumpAttempts})…`);
             }
           } catch { /* no VIA device yet */ }
         }
         await sleep(1000);
+      }
+      if (!dfu && jumpAttempts > 0) {
+        addLog(`Bootloader jump was sent ${jumpAttempts} time(s) but no DFU device appeared — the running firmware may predate the auto-jump handler. Use the keyboard's bootloader key combo or the PCB reset button.`);
       }
     }
 
@@ -261,11 +274,32 @@ export default function FirmwarePanel({
     }
 
     setDfuPresent(true);
-    addLog(`Flashing half ${half}…`);
-    const result = await flashStreamedAsync(binPath);
-    addLog(result.message);
-    if (result.success) setDfuPresent(false);
-    return result.success;
+    // Give Windows a moment to finish binding the driver to the freshly
+    // enumerated DFU device — flashing immediately after first detection can
+    // fail instantly even though the device shows up in dfu-util's list.
+    addLog('DFU device detected — waiting 3s for the driver to settle…');
+    await sleep(3000);
+    if (wizardCancelRef.current) return false;
+
+    let result = null;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      addLog(`Flashing half ${half}${attempt > 1 ? ` (attempt ${attempt} of 3)` : ''}…`);
+      result = await flashStreamedAsync(binPath);
+      addLog(result.message);
+      if (result.success || wizardCancelRef.current) break;
+      if (attempt < 3) {
+        addLog('Flash failed — retrying in 3s…');
+        await sleep(3000);
+        const still = await invoke('check_dfu_device').catch(() => false);
+        if (!still) {
+          addLog('DFU device no longer present — cannot retry.');
+          setDfuPresent(false);
+          break;
+        }
+      }
+    }
+    if (result?.success) setDfuPresent(false);
+    return !!result?.success;
   };
 
   const runBuildFlash = async () => {
@@ -476,7 +510,7 @@ export default function FirmwarePanel({
     setWriteKeymapMsg('');
     try {
       const localMaps = [...(allKeymapsRef?.current ?? [])];
-      if (device) {
+      if (device && !profileLoaded) {
         try {
           const firmwareLayers = await invoke('read_all_layers');
           for (let l = 0; l < firmwareLayers.length; l++) {
@@ -486,6 +520,8 @@ export default function FirmwarePanel({
         } catch (err) {
           addLog(`Could not read from keyboard — using cached layers: ${err}`);
         }
+      } else if (profileLoaded) {
+        addLog('Profile loaded — using its layers (not reading from the keyboard)');
       }
       const content = buildKeymapLayersCCode(localMaps, layerCount);
       await invoke('write_text_file', { path: keymapFilePath, content });

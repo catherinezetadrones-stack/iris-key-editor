@@ -46,6 +46,7 @@ export default function LightingPanel({
   onScrollSettingsChange,
   compact = false,
   selectedKey = null, // { row, col } from the main keyboard grid
+  selectedKeys = null, // Set of "row,col" ids when multi-select is active
   perKeyColorsFilePath = '',
   scrollTextFilePath = '',
 }) {
@@ -59,6 +60,24 @@ export default function LightingPanel({
     const idx = KEY_TO_LED.get(keyObj.id);
     return idx !== undefined ? idx : null;
   }, [selectedKey]);
+
+  // All LED indices covered by the grid's multi-select set (falls back to the anchor key)
+  const selectedLedIndices = useMemo(() => {
+    const allKeys = [...HALVES.left, ...HALVES.right];
+    const indices = new Set();
+    if (selectedKeys && selectedKeys.size > 0) {
+      for (const id of selectedKeys) {
+        const [row, col] = id.split(',').map(Number);
+        const keyObj = allKeys.find(k => k.viaRow === row && k.viaCol === col);
+        if (!keyObj) continue;
+        const idx = KEY_TO_LED.get(keyObj.id);
+        if (idx !== undefined) indices.add(idx);
+      }
+    } else if (selectedKeyLedIdx !== null) {
+      indices.add(selectedKeyLedIdx);
+    }
+    return [...indices];
+  }, [selectedKeys, selectedKeyLedIdx]);
   const log = addDebugLog ?? (() => {});
 
   // Global per-layer configs (local — read from keyboard, not persisted to profile)
@@ -394,33 +413,38 @@ export default function LightingPanel({
             compact ? (
               /* Compact: connected to main keyboard selection */
               <div className="pk-body">
-                {selectedKeyLedIdx === null ? (
+                {selectedLedIndices.length === 0 ? (
                   <div className="pk-no-sel" style={{ padding: '24px 12px' }}>
                     Click a key on the keyboard to set its color for this layer.
                   </div>
                 ) : (
                   <ColorPicker
-                    hsv={perKeyColors?.[layer]?.[selectedKeyLedIdx] ?? null}
+                    /* Swatch shows the anchor key's color; other multi-selected keys may differ */
+                    hsv={perKeyColors?.[layer]?.[selectedKeyLedIdx ?? selectedLedIndices[0]] ?? null}
                     onChange={async hsv => {
                       onPerKeyColorsChange(prev => {
                         const next = prev.map(l => [...l]);
-                        next[layer][selectedKeyLedIdx] = hsv;
+                        for (const ledIdx of selectedLedIndices) next[layer][ledIdx] = hsv;
                         return next;
                       });
                       if (device) {
                         await ensureDirectMode();
-                        invoke('fastset_led', { ledIndex: selectedKeyLedIdx, h: hsv[0], s: hsv[1], v: hsv[2] }).catch(() => {});
+                        for (const ledIdx of selectedLedIndices) {
+                          invoke('fastset_led', { ledIndex: ledIdx, h: hsv[0], s: hsv[1], v: hsv[2] }).catch(() => {});
+                        }
                       }
                     }}
                     onClear={async () => {
                       onPerKeyColorsChange(prev => {
                         const next = prev.map(l => [...l]);
-                        next[layer][selectedKeyLedIdx] = null;
+                        for (const ledIdx of selectedLedIndices) next[layer][ledIdx] = null;
                         return next;
                       });
                       if (device) {
                         await ensureDirectMode();
-                        invoke('fastset_led', { ledIndex: selectedKeyLedIdx, h: 0, s: 0, v: 0 }).catch(() => {});
+                        for (const ledIdx of selectedLedIndices) {
+                          invoke('fastset_led', { ledIndex: ledIdx, h: 0, s: 0, v: 0 }).catch(() => {});
+                        }
                       }
                     }}
                   />

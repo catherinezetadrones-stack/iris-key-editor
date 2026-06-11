@@ -102,7 +102,14 @@ Copy-Tree "$VialQmkRoot\keyboards\keebio" "$stage\vial-qmk\keyboards\keebio" -xd
 # ── Stage flash/driver tools ──────────────────────────────────────────────────
 
 New-Item -ItemType Directory -Force "$stage\bin" | Out-Null
-if ($DfuUtil) { Copy-Item $DfuUtil "$stage\bin\dfu-util.exe"; Info "Included dfu-util: $DfuUtil" }
+if ($DfuUtil) {
+    Copy-Item $DfuUtil "$stage\bin\dfu-util.exe"; Info "Included dfu-util: $DfuUtil"
+    # The non-static dfu-util.exe needs libusb-1.0.dll next to it — without it the
+    # exe exits instantly with no output and flashing fails. Ship it if present.
+    $libusb = Join-Path (Split-Path $DfuUtil) 'libusb-1.0.dll'
+    if (Test-Path $libusb) { Copy-Item $libusb "$stage\bin\libusb-1.0.dll"; Info "Included libusb-1.0.dll" }
+    else { Write-Warning 'libusb-1.0.dll not found next to dfu-util.exe - the bundled dfu-util will NOT run unless it is a static build.' }
+}
 if ($Zadig)   { Copy-Item $Zadig   "$stage\bin\zadig.exe";    Info "Included Zadig: $Zadig" }
 
 # ── Manifest ──────────────────────────────────────────────────────────────────

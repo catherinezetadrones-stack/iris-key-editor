@@ -75,6 +75,9 @@ export default function App() {
 
   const [currentFilePath, setCurrentFilePath] = useState(null); // null = no file open
   const [isDirty, setIsDirty] = useState(false);
+  // Bumped whenever the current state should become the new "clean" baseline
+  // (device connect, Save, Save As, New, Open). See the dirty-compare effect.
+  const [baselineToken, setBaselineToken] = useState(0);
 
   const [hiddenTabs, setHiddenTabs] = useState(() => {
     try { return JSON.parse(localStorage.getItem('hiddenTabs') || '{}'); }
@@ -108,6 +111,12 @@ export default function App() {
   // on load; layers beyond firmware capacity live here only.
   const allKeymapsRef = useRef([]);
 
+  // True once a profile file is associated with the session (Open, Save As, New).
+  // When true the profile is the source of truth: hardware reads must not
+  // overwrite app state on (re)connect — e.g. plugging in the not-yet-flashed
+  // half of the split must not pull its stale EEPROM config into the editor.
+  const profileLoadedRef = useRef(false);
+
   const layerDropdownRef = useRef(null);
   const buildProfileRef = useRef(null); // always points to the latest buildProfile closure
   useEffect(() => {
@@ -129,18 +138,21 @@ export default function App() {
     if (verboseRef.current) addDebugLog(msg);
   }, [addDebugLog]);
 
+  // fromHardware defaults to "only when no profile is loaded" — with a profile
+  // loaded the local cache is authoritative. Read-back-after-write call sites
+  // (paste, clear, open) pass { fromHardware: true } explicitly.
   const loadKeymap = useCallback(
-    async (layer) => {
+    async (layer, { fromHardware = !profileLoadedRef.current } = {}) => {
       try {
         let result;
-        if (layer < firmwareLayerCountRef.current) {
+        if (layer < firmwareLayerCountRef.current && fromHardware) {
           result = await invoke('read_keymap', { layer });
           allKeymapsRef.current[layer] = result;
         } else {
           result = (allKeymapsRef.current[layer] ??= Array.from({ length: 10 }, () => Array(6).fill(0x0000)));
         }
         setKeymap(result);
-        addDebugLog(`Loaded layer ${layer}${layer >= firmwareLayerCountRef.current ? ' (local — beyond firmware capacity)' : ''}`);
+        addDebugLog(`Loaded layer ${layer}${layer >= firmwareLayerCountRef.current ? ' (local — beyond firmware capacity)' : (!fromHardware ? ' (cached — profile is source of truth)' : '')}`);
         logVerbose(`  └─ ${result.length} rows × ${result[0]?.length ?? 0} cols`);
       } catch (err) {
         addDebugLog(`Keymap load error: ${err}`);
@@ -180,8 +192,22 @@ export default function App() {
           } catch {
             firmwareLayerCountRef.current = 4; // safe fallback
           }
-          await loadKeymap(currentLayer);
-          setLayoutDirty(false);
+          if (!profileLoadedRef.current) {
+            // No profile loaded — the keyboard is the source of truth, pull its state.
+            // Fill the local cache for every firmware layer up front so the dirty-flag
+            // baseline is complete — lazy per-layer loads later must not register as diffs.
+            try {
+              const all = await invoke('read_all_layers');
+              all.forEach((km, i) => { allKeymapsRef.current[i] = km; });
+            } catch { /* per-layer loads below still work */ }
+            await loadKeymap(currentLayer);
+            setLayoutDirty(false);
+            setBaselineToken(t => t + 1);
+          } else {
+            // Profile loaded — it is the source of truth. Do not pull the connected
+            // device's (possibly stale) config or reset the dirty baseline.
+            addDebugLog('Profile loaded — keeping editor state, not reading config from keyboard');
+          }
           applyPerKeyColors(currentLayer, lightingPerKeyColors[currentLayer]);
         }
       } catch (err) {
@@ -217,7 +243,6 @@ export default function App() {
         );
       }
       setLayoutDirty(true);
-      setIsDirty(true);
       addDebugLog(`Key updated [${row},${col}] -> 0x${newKeycode.toString(16).padStart(4, '0')}${withinFirmware ? '' : ' (local only)'}`);
       logVerbose(`  └─ decoded: ${decodeQuantum(newKeycode) ?? 'unknown'} | layer ${currentLayer}`);
     } catch (err) {
@@ -253,7 +278,6 @@ export default function App() {
     setLayerNames(names => [...names, `Layer ${newIdx}`]);
     setLightingPerKeyColors(prev => [...prev, Array(68).fill(null)]);
     setScrollSettings(prev => [...prev, { text: '', speed_ms: 150, fg_hsv: [0, 255, 100], bg_on: false, bg_hsv: [170, 255, 30], target_layer: newIdx }]);
-    setIsDirty(true);
     addDebugLog(`Layer ${newIdx} added (local — write to firmware after updating firmware layer count)`);
   };
 
@@ -262,7 +286,6 @@ export default function App() {
       const trimmed = editingLayerName.trim() || `Layer ${editingLayerIdx}`;
       setLayerNames(names => names.map((n, i) => i === editingLayerIdx ? trimmed : n));
       setEditingLayerIdx(null);
-      setIsDirty(true);
     }
   };
 
@@ -323,9 +346,8 @@ export default function App() {
       if (currentLayer < firmwareLayerCountRef.current) {
         await invoke('write_layer', { layer: currentLayer, keymap: copiedLayer });
       }
-      await loadKeymap(currentLayer);
+      await loadKeymap(currentLayer, { fromHardware: true });
       setLayoutDirty(true);
-      setIsDirty(true);
       addDebugLog(`Pasted to layer ${currentLayer}${currentLayer >= firmwareLayerCountRef.current ? ' (local only)' : ''}`);
     } catch (err) {
       addDebugLog(`Paste error: ${err}`);
@@ -345,9 +367,8 @@ export default function App() {
       if (currentLayer < firmwareLayerCountRef.current) {
         await invoke('write_layer', { layer: currentLayer, keymap: blank });
       }
-      await loadKeymap(currentLayer);
+      await loadKeymap(currentLayer, { fromHardware: true });
       setLayoutDirty(true);
-      setIsDirty(true);
       addDebugLog(`Layer ${currentLayer} cleared${currentLayer >= firmwareLayerCountRef.current ? ' (local only)' : ''}`);
     } catch (err) {
       addDebugLog(`Clear error: ${err}`);
@@ -432,8 +453,10 @@ export default function App() {
       const savedPath = await invoke('save_profile', { profile });
       if (savedPath) {
         setCurrentFilePath(savedPath);
+        profileLoadedRef.current = true;
         setIsDirty(false);
         setLayoutDirty(false);
+        setBaselineToken(t => t + 1);
         addDebugLog(`Profile saved: ${savedPath.split(/[\\/]/).pop()}`);
       } else {
         addDebugLog('Save cancelled');
@@ -455,6 +478,7 @@ export default function App() {
       await invoke('save_profile_to_path', { profile, path: currentFilePath });
       setIsDirty(false);
       setLayoutDirty(false);
+      setBaselineToken(t => t + 1);
       addDebugLog(`Saved: ${currentFilePath.split(/[\\/]/).pop()}`);
     } catch (err) {
       addDebugLog(`Save error: ${err}`);
@@ -480,10 +504,20 @@ export default function App() {
       setComboDescriptions({});
       allKeymapsRef.current = [];
       setCurrentFilePath(path);
+      profileLoadedRef.current = true;
       setIsDirty(false);
       setLayoutDirty(false);
-      if (selectedDevice) await loadKeymap(currentLayer);
-      else setKeymap([]);
+      if (selectedDevice) {
+        // Refill the full layer cache so the new dirty baseline is complete
+        try {
+          const all = await invoke('read_all_layers');
+          all.forEach((km, i) => { allKeymapsRef.current[i] = km; });
+        } catch { /* per-layer loads refill lazily */ }
+        await loadKeymap(currentLayer);
+      } else {
+        setKeymap([]);
+      }
+      setBaselineToken(t => t + 1);
       addDebugLog(`New profile created: ${path.split(/[\\/]/).pop()}`);
     } catch (err) {
       addDebugLog(`New profile error: ${err}`);
@@ -513,39 +547,68 @@ export default function App() {
   // Per-slot combo descriptions, keyed by combo slot index.
   const [comboDescriptions, setComboDescriptions] = useState(() => ({}));
 
-  // Wrapped setters that also mark the profile dirty so the UI reflects unsaved changes.
+  // Wrapped setters kept as the stable prop API for child components. Dirty tracking
+  // happens in the baseline-compare effect below, so these are plain pass-throughs.
   const handlePerKeyColorsChange = useCallback((colors) => {
     setLightingPerKeyColors(colors);
-    setIsDirty(true);
   }, []);
   const handleScrollSettingsChange = useCallback((settings) => {
     setScrollSettings(settings);
-    setIsDirty(true);
   }, []);
   const handleTapDanceKeysChange = useCallback((keys) => {
     setTapDanceKeys(keys);
-    setIsDirty(true);
   }, []);
   const handleTdKeyAssignmentsChange = useCallback((assignments) => {
     setTdKeyAssignments(assignments);
-    setIsDirty(true);
   }, []);
   const handleExtraMacrosChange = useCallback((updater) => {
     setExtraMacros(prev => (typeof updater === 'function' ? updater(prev) : updater));
-    setIsDirty(true);
   }, []);
   const handleMacroDescriptionsChange = useCallback((updater) => {
     setMacroDescriptions(prev => (typeof updater === 'function' ? updater(prev) : updater));
-    setIsDirty(true);
   }, []);
   const handleTapDanceDescriptionsChange = useCallback((updater) => {
     setTapDanceDescriptions(prev => (typeof updater === 'function' ? updater(prev) : updater));
-    setIsDirty(true);
   }, []);
   const handleComboDescriptionsChange = useCallback((updater) => {
     setComboDescriptions(prev => (typeof updater === 'function' ? updater(prev) : updater));
-    setIsDirty(true);
   }, []);
+
+  // ── Refined dirty flag ───────────────────────────────────────────────────────
+  // isDirty is computed by deep-comparing the profile-contributing state against a
+  // baseline snapshot, so manually reverting a change back to its original value
+  // clears the flag again. The baseline is recaptured whenever baselineToken bumps
+  // (device connect, Save, Save As, New, Open) and once on mount.
+  // Hardware-backed data (VIA macro buffer, global lighting, VIAL tap dance and
+  // combo entries) lives on the keyboard, not in this component, and is excluded.
+  const baselineRef = useRef(null);
+  const lastBaselineTokenRef = useRef(null);
+
+  // JSON.stringify with sorted object keys so key insertion order can't fake a diff
+  const stableStringify = (value) => JSON.stringify(value, (_k, v) =>
+    v && typeof v === 'object' && !Array.isArray(v)
+      ? Object.keys(v).sort().reduce((acc, k) => { acc[k] = v[k]; return acc; }, {})
+      : v
+  );
+
+  // No dependency array on purpose: allKeymapsRef is a ref, so its mutations never
+  // trigger renders themselves — running on every render guarantees the comparison
+  // never goes stale. The snapshot is a few KB, so the cost is negligible.
+  useEffect(() => {
+    const snapshot = stableStringify({
+      keymaps: allKeymapsRef.current,
+      lightingPerKeyColors, scrollSettings, layerCount, layerNames,
+      tapDanceKeys, tdKeyAssignments, customLabels, extraMacros,
+      macroDescriptions, tapDanceDescriptions, comboDescriptions,
+    });
+    if (baselineRef.current === null || baselineToken !== lastBaselineTokenRef.current) {
+      lastBaselineTokenRef.current = baselineToken;
+      baselineRef.current = snapshot;
+      setIsDirty(false);
+      return;
+    }
+    setIsDirty(snapshot !== baselineRef.current);
+  });
 
   // Ctrl+S / Cmd+S global shortcut for Save
   useEffect(() => {
@@ -608,7 +671,6 @@ export default function App() {
       if (Object.keys(res[currentLayer] ?? {}).length === 0) delete res[currentLayer];
       return res;
     });
-    setIsDirty(true);
   }, [selectedKeyObj, currentLayer]);
 
   const clearAllLabels = useCallback(() => {
@@ -620,7 +682,6 @@ export default function App() {
       if (Object.keys(res[currentLayer] ?? {}).length === 0) delete res[currentLayer];
       return res;
     });
-    setIsDirty(true);
   }, [selectedKeyObj, currentLayer]);
 
   const currentKeyEntry = selectedKeyObj ? (customLabels[currentLayer]?.[selectedKeyObj.id] ?? null) : null;
@@ -808,10 +869,16 @@ export default function App() {
         setComboDescriptions(profile.combo_descriptions);
         addDebugLog('Combo descriptions restored');
       }
-      await loadKeymap(currentLayer);
+      // Land on layer 0 after open — it always exists in a valid profile, so the
+      // read-back can never hit a layer the profile doesn't define (which would
+      // otherwise be pulled from possibly-stale hardware).
+      setCurrentLayer(0);
+      await loadKeymap(0, { fromHardware: true });
       setCurrentFilePath(path);
+      profileLoadedRef.current = true;
       setIsDirty(false);
       setLayoutDirty(false);
+      setBaselineToken(t => t + 1);
       addDebugLog(`Profile opened: ${path.split(/[\\/]/).pop()}`);
     } catch (err) {
       addDebugLog(`Open error: ${err}`);
@@ -1072,6 +1139,7 @@ export default function App() {
                           onScrollSettingsChange={handleScrollSettingsChange}
                           compact
                           selectedKey={selectedKey}
+                          selectedKeys={selectedKeys}
                           perKeyColorsFilePath={perKeyColorsFilePath}
                           scrollTextFilePath={scrollTextFilePath}
                         />
@@ -1146,6 +1214,7 @@ export default function App() {
                   scrollSettings={scrollSettings}
                   tapDanceKeys={tapDanceKeys}
                   extraMacros={extraMacros}
+                  profileLoaded={currentFilePath !== null}
                 />
               )}
               {activeTab === 'settings' && (

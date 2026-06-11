@@ -22,28 +22,24 @@ and summarize what changed.
 
 - **Macro recorder stops recording if 'enter' is hit** - when macro recording starts we need to remove focus from that the record button so that any key can be pressed during the recording without prematurely stopping the recording.
 
-- **Refined dirty flag** - If I change a key the dirty flag correctly shows there is a diff. However, if I manually revert the change back to the original, flag still shows there is a diff when there is nothing actually changed.
+- **Refined dirty flag** - If I change a key the dirty flag correctly shows there is a diff. However, if I manually revert the change back to the original, flag still shows there is a diff when there is nothing actually changed. If this is difficult, only report why it is difficult and what would be required...and we will do this item at another time.
 
+- **Combos and Macros aren't loaded when I open a profile** - When on the combos or macros tab the configurations aren't visually loaded when I open a profile. I must navigate away to another tab and come back for the change to be seen.
+
+- **Tap Dance Description on Main Keyboard layout** - If a key is assigned a tap dance then and that tap dance definition has a description, then the tooltip should show the tap dance description otherwise it falls back to its other options.
 
 ## Firmware Bugs
 
-- **Build & Flash wizard does not auto-jump into bootloader mode** - During the one-click Build & Flash flow the "Waiting for half N in bootloader mode" step just sat there; the keyboard had to be put into bootloader mode manually (via the assigned key combo). The wizard's auto-jump path (`detect_devices` → `jump_bootloader` inside `flashHalf` in `FirmwarePanel.jsx`) needs investigation — e.g. whether `detect_devices` sees the board while the wizard is polling, whether the VIA HID handle is held open elsewhere, or whether the jump command needs a retry. Can be tested individually without a full Build & Flash run.
+- **Build & Flash wizard does not auto-jump into bootloader mode** - During the one-click Build & Flash flow the "Waiting for half N in bootloader mode" step just sat there; the keyboard had to be put into bootloader mode manually (via the assigned key combo). The wizard's auto-jump path (`detect_devices` → `jump_bootloader` inside `flashHalf` in `FirmwarePanel.jsx`) needs investigation — e.g. whether `detect_devices` sees the board while the wizard is polling, whether the VIA HID handle is held open elsewhere, or whether the jump command needs a retry. Can be tested individually without a full Build & Flash run. This QMK doc may be a good resource to help solve this bug https://docs.qmk.fm/keycodes#quantum-keycodes
 
+- **Loaded profile is source of truth** - When a profile is loaded (App.jsx state `currentFilePath !== null`), the profile is the source of truth — the app must NOT pull key configuration from the plugged-in keyboard. Only read configuration from the keyboard when NO profile is loaded. Concrete failure being fixed: during guided Build & Flash of this split keyboard, the user flashes one half, unplugs it, plugs in the OTHER half (which still has old config in EEPROM); the app detects the "new" device and pulls its stale keymap/macros into the editor state, so subsequently generated sources / saved profiles contain old data unless the user remembers to re-open the profile first.
+The only time we should read key configuration from the keyboard is if there is no profile loaded
 
 ## Planned Features
 
 ### App UI / UX Improvements
 
 _Straightforward changes to the existing interface_
-
-- **Descriptions for Tap Dance** - I want to be able to add a description in the Tap Dance panel on the editor page. This should also be stored in the users keymap profile.
-
-- **Descriptions for Combos** - I want to be able to add a description in the Combos tab, try to match the same position we did on the Macros tab. This should also be stored in the users keymap profile.
-
-- **Descriptions on Keys in Key Picker** - In VIA they show descriptions for what keycodes. For example if `TO(0)` is selected, a description would be something like "Activates Layer, go 'TO' layer". We can use the QMK firmware docs to get the descriptions and then shorten or simplify them if it makes sense. The QMK keycodes are located here `https://docs.qmk.fm/keycodes`. This description should show in the key picker portion of the panel at the top, it should not scroll with the keys and it should have a default message if no key is selected.
-The only overrides for these descriptions should be the descriptions we write to the user keymap profile for Macros and Tap Dance if they are present.
-
-- **Enhanced Tooltips for editor keyboard** - Use the descriptions from the [previous task](Descriptions on Keys in Key Picker) to show as tooltip in the keyboard. Again, the only overrides to the descriptions are the custom ones we write to the user keymap profile for Macros and Tap Dance.
 
 
 ### New App Features
