@@ -14,7 +14,7 @@ import TapDanceEditor from './components/TapDanceEditor';
 import TapDanceKeyPanel from './components/TapDanceKeyPanel';
 import CombosEditor from './components/CombosEditor';
 import FirmwarePanel from './components/FirmwarePanel';
-import LightingPanel from './components/LightingPanel';
+import LightingPanel, { DEFAULT_STATE as DEFAULT_LIGHTING_STATE } from './components/LightingPanel';
 
 export default function App() {
   const [devices, setDevices] = useState([]);
@@ -116,6 +116,13 @@ export default function App() {
   // overwrite app state on (re)connect — e.g. plugging in the not-yet-flashed
   // half of the split must not pull its stale EEPROM config into the editor.
   const profileLoadedRef = useRef(false);
+
+  // Profile-held copies of the hardware-backed sections (VIA macros, VIAL tap
+  // dance/combos). Seeded from the profile on Open and updated after each
+  // successful "save to keyboard", so buildProfile() can export them without
+  // reading a possibly-stale half plugged in mid-flash. null = not seeded —
+  // fall back to a hardware read.
+  const profileHwSectionsRef = useRef({ macros: null, macroMeta: null, tap_dance: null, combos: null });
 
   const layerDropdownRef = useRef(null);
   const buildProfileRef = useRef(null); // always points to the latest buildProfile closure
@@ -389,48 +396,79 @@ export default function App() {
     await executeClear();
   };
 
-  // Read all keyboard state and return a complete profile object.
-  // Macros are decoded from raw bytes into a human-readable action list so the
-  // saved JSON is inspectable and not just an opaque array of numbers.
+  // Build a complete profile object. With a profile loaded the in-app caches
+  // are authoritative — saving must not pull state from a possibly-stale half
+  // plugged in mid-flash. With no profile the keyboard is read directly and
+  // the caches are seeded so the Save As that follows starts a profile-backed
+  // session. Macros are decoded from raw bytes into a human-readable action
+  // list so the saved JSON is inspectable.
   const buildProfile = async () => {
-    // Read however many layers the firmware supports, then append any locally-cached
-    // extra layers so that layers beyond firmware capacity are preserved in the export.
-    const firmwareLayers = await invoke('read_all_layers');
-    const layers = [...firmwareLayers];
-    for (let l = firmwareLayers.length; l < layerCount; l++) {
-      layers.push(allKeymapsRef.current[l] ?? Array.from({ length: 10 }, () => Array(6).fill(0x0000)));
-    }
-    let macros = [];
-    try {
-      const info    = await invoke('get_macro_info');
-      const rawBuf  = await invoke('read_macros');
-      macros = parseBuffer(rawBuf, info.count);
-    } catch {
-      addDebugLog('Macros unavailable — exporting without');
-    }
-    let lighting = null;
-    try {
-      const current = await invoke('get_lighting');
-      lighting = Array.from({ length: layerCount }, () => ({ ...current }));
-    } catch {
-      addDebugLog('Lighting unavailable — exporting without');
-    }
-    let tap_dance = null;
-    let combos    = null;
-    try {
-      const vs = await invoke('detect_vial');
-      if (vs.supported) {
-        if (vs.td_count > 0) {
-          tap_dance = await invoke('vial_get_all_tap_dance', { count: vs.td_count });
-          addDebugLog(`Tap dance: exported ${tap_dance.length} entries`);
-        }
-        if (vs.combo_count > 0) {
-          combos = await invoke('vial_get_all_combos', { count: vs.combo_count });
-          addDebugLog(`Combos: exported ${combos.length} entries`);
-        }
+    const fromProfile = profileLoadedRef.current;
+    const cached = profileHwSectionsRef.current;
+    const blankLayer = () => Array.from({ length: 10 }, () => Array(6).fill(0x0000));
+
+    let layers;
+    if (fromProfile) {
+      // The local cache holds every layer (profile import wrote through it).
+      layers = Array.from({ length: layerCount }, (_, l) => allKeymapsRef.current[l] ?? blankLayer());
+    } else {
+      // Read however many layers the firmware supports, then append any locally-cached
+      // extra layers so that layers beyond firmware capacity are preserved in the export.
+      const firmwareLayers = await invoke('read_all_layers');
+      layers = [...firmwareLayers];
+      for (let l = firmwareLayers.length; l < layerCount; l++) {
+        layers.push(allKeymapsRef.current[l] ?? blankLayer());
       }
-    } catch (err) {
-      addDebugLog(`Tap dance/combos unavailable — exporting without: ${err}`);
+    }
+
+    let macros = [];
+    if (fromProfile && cached.macros) {
+      macros = cached.macros;
+    } else {
+      try {
+        const info    = await invoke('get_macro_info');
+        const rawBuf  = await invoke('read_macros');
+        macros = parseBuffer(rawBuf, info.count);
+        cached.macros = macros;
+        cached.macroMeta = { macroCount: info.count, bufferSize: info.buffer_size };
+      } catch {
+        addDebugLog('Macros unavailable — exporting without');
+      }
+    }
+
+    let lighting = null;
+    if (fromProfile) {
+      lighting = Array.from({ length: layerCount }, (_, i) => globalLightingConfigs[i] ?? { ...DEFAULT_LIGHTING_STATE });
+    } else {
+      try {
+        const current = await invoke('get_lighting');
+        lighting = Array.from({ length: layerCount }, () => ({ ...current }));
+        setGlobalLightingConfigs(lighting.map(c => ({ ...c })));
+      } catch {
+        addDebugLog('Lighting unavailable — exporting without');
+      }
+    }
+
+    let tap_dance = fromProfile ? cached.tap_dance : null;
+    let combos    = fromProfile ? cached.combos    : null;
+    if (tap_dance === null || combos === null) {
+      try {
+        const vs = await invoke('detect_vial');
+        if (vs.supported) {
+          if (tap_dance === null && vs.td_count > 0) {
+            tap_dance = await invoke('vial_get_all_tap_dance', { count: vs.td_count });
+            cached.tap_dance = tap_dance;
+            addDebugLog(`Tap dance: exported ${tap_dance.length} entries`);
+          }
+          if (combos === null && vs.combo_count > 0) {
+            combos = await invoke('vial_get_all_combos', { count: vs.combo_count });
+            cached.combos = combos;
+            addDebugLog(`Combos: exported ${combos.length} entries`);
+          }
+        }
+      } catch (err) {
+        addDebugLog(`Tap dance/combos unavailable — exporting without: ${err}`);
+      }
     }
     return { version: 3, keyboard: 'iris-lm', layers, macros, lighting, tap_dance, combos,
       lighting_perkey: lightingPerKeyColors, scroll_settings: scrollSettings,
@@ -502,6 +540,11 @@ export default function App() {
       setMacroDescriptions({ via: {}, qmk: {} });
       setTapDanceDescriptions({});
       setComboDescriptions({});
+      // Clear the hardware-section caches — null means the next Save (or
+      // editor load) falls back to reading the connected keyboard.
+      profileHwSectionsRef.current = { macros: null, macroMeta: null, tap_dance: null, combos: null };
+      setGlobalLightingConfigs(Array.from({ length: 4 }, () => ({ ...DEFAULT_LIGHTING_STATE })));
+      setEditorReloadKey(k => k + 1); // editors re-read hardware and re-seed the cleared caches
       allKeymapsRef.current = [];
       setCurrentFilePath(path);
       profileLoadedRef.current = true;
@@ -524,11 +567,26 @@ export default function App() {
     }
   };
 
-  const [macroReloadKey, setMacroReloadKey] = useState(0);
+  // Bumped after Open so the macro/tap dance/combo editors reload from the
+  // freshly-seeded profile caches (or from hardware when no cache exists).
+  const [editorReloadKey, setEditorReloadKey] = useState(0);
 
   const [lightingPerKeyColors, setLightingPerKeyColors] = useState(
     () => Array.from({ length: 4 }, () => Array(68).fill(null))
   );
+  // Global (per-layer) lighting configs — owned here rather than by
+  // LightingPanel so its two instances (compact editor-mode + Lighting tab)
+  // share one state and the profile can persist it.
+  const [globalLightingConfigs, setGlobalLightingConfigs] = useState(
+    () => Array.from({ length: 4 }, () => ({ ...DEFAULT_LIGHTING_STATE }))
+  );
+  // Extend lighting configs when layers are added
+  useEffect(() => {
+    setGlobalLightingConfigs(prev => {
+      if (prev.length >= layerCount) return prev;
+      return [...prev, ...Array.from({ length: layerCount - prev.length }, () => ({ ...DEFAULT_LIGHTING_STATE }))];
+    });
+  }, [layerCount]);
   const [scrollSettings, setScrollSettings] = useState(
     () => Array.from({ length: 4 }, (_, i) => ({ text: '', speed_ms: 150, fg_hsv: [0, 255, 100], bg_on: false, bg_hsv: [170, 255, 30], target_layer: i }))
   );
@@ -572,6 +630,19 @@ export default function App() {
   }, []);
   const handleComboDescriptionsChange = useCallback((updater) => {
     setComboDescriptions(prev => (typeof updater === 'function' ? updater(prev) : updater));
+  }, []);
+
+  // Cache writers handed to the editors — they mirror hardware reads and
+  // successful "save to keyboard" writes into the profile-held section caches.
+  const handleViaMacrosChange = useCallback(({ macros, macroCount, bufferSize }) => {
+    profileHwSectionsRef.current.macros = macros;
+    profileHwSectionsRef.current.macroMeta = { macroCount, bufferSize };
+  }, []);
+  const handleTapDanceEntriesChange = useCallback((entries) => {
+    profileHwSectionsRef.current.tap_dance = entries;
+  }, []);
+  const handleComboEntriesChange = useCallback((entries) => {
+    profileHwSectionsRef.current.combos = entries;
   }, []);
 
   // ── Refined dirty flag ───────────────────────────────────────────────────────
@@ -709,6 +780,23 @@ export default function App() {
       if (!result) { addDebugLog('Open cancelled'); return; }
       const { profile, path } = result;
       if (profile.version !== 1 && profile.version !== 2 && profile.version !== 3) { addDebugLog(`Unknown profile version ${profile.version}`); return; }
+      // Seed the profile-held hardware-section caches up front so any editor
+      // reload during this import already sees the profile's data, and Save
+      // exports it without reading hardware.
+      profileHwSectionsRef.current = {
+        // null (not []) when the profile lacks a section — null falls back to a
+        // hardware read; [] would claim "profile says no macros" and silently
+        // export empty macros on Save.
+        macros: Array.isArray(profile.macros) ? profile.macros : null,
+        macroMeta: null,
+        tap_dance: Array.isArray(profile.tap_dance) ? profile.tap_dance : null,
+        combos: Array.isArray(profile.combos) ? profile.combos : null,
+      };
+      setGlobalLightingConfigs(
+        Array.isArray(profile.lighting) && profile.lighting.length > 0
+          ? profile.lighting
+          : Array.from({ length: 4 }, () => ({ ...DEFAULT_LIGHTING_STATE }))
+      );
       addDebugLog(`Importing ${profile.layers.length} layers (firmware supports ${firmwareLayerCountRef.current})...`);
       for (let l = 0; l < profile.layers.length; l++) {
         allKeymapsRef.current[l] = profile.layers[l]; // cache all layers locally
@@ -734,7 +822,6 @@ export default function App() {
           const bytes = serializeBuffer(profile.macros, info.buffer_size);
           addDebugLog(`Writing ${bytes.filter(b => b !== 0).length} non-zero macro bytes…`);
           await invoke('write_macros', { data: bytes });
-          setMacroReloadKey(k => k + 1); // signal MacroEditor to reload
           addDebugLog('Macros restored');
         } catch (err) {
           addDebugLog(`Macro restore failed: ${err}`);
@@ -876,6 +963,7 @@ export default function App() {
       await loadKeymap(0, { fromHardware: true });
       setCurrentFilePath(path);
       profileLoadedRef.current = true;
+      setEditorReloadKey(k => k + 1); // macro/TD/combo editors reload from the seeded caches
       setIsDirty(false);
       setLayoutDirty(false);
       setBaselineToken(t => t + 1);
@@ -1142,6 +1230,9 @@ export default function App() {
                           selectedKeys={selectedKeys}
                           perKeyColorsFilePath={perKeyColorsFilePath}
                           scrollTextFilePath={scrollTextFilePath}
+                          globalConfigs={globalLightingConfigs}
+                          onGlobalConfigsChange={setGlobalLightingConfigs}
+                          profileLoaded={currentFilePath !== null}
                         />
                       )}
                       {editorMode === 'tap-dance' && (
@@ -1165,12 +1256,15 @@ export default function App() {
                 <MacroEditor
                   device={selectedDevice}
                   addDebugLog={addDebugLog}
-                  reloadKey={macroReloadKey}
+                  reloadKey={editorReloadKey}
                   extraMacros={extraMacros}
                   onExtraMacrosChange={handleExtraMacrosChange}
                   extraMacrosFilePath={extraMacrosFilePath}
                   macroDescriptions={macroDescriptions}
                   onMacroDescriptionsChange={handleMacroDescriptionsChange}
+                  profileLoaded={currentFilePath !== null}
+                  viaMacrosCache={profileHwSectionsRef.current.macros}
+                  onViaMacrosChange={handleViaMacrosChange}
                 />
               )}
               {activeTab === 'tapdance' && (
@@ -1178,6 +1272,10 @@ export default function App() {
                   device={selectedDevice}
                   tapDanceDescriptions={tapDanceDescriptions}
                   macroDescriptions={macroDescriptions}
+                  reloadKey={editorReloadKey}
+                  profileLoaded={currentFilePath !== null}
+                  tapDanceCache={profileHwSectionsRef.current.tap_dance}
+                  onTapDanceChange={handleTapDanceEntriesChange}
                 />
               )}
               {activeTab === 'combos'   && (
@@ -1187,6 +1285,10 @@ export default function App() {
                   onComboDescriptionsChange={handleComboDescriptionsChange}
                   macroDescriptions={macroDescriptions}
                   tapDanceDescriptions={tapDanceDescriptions}
+                  reloadKey={editorReloadKey}
+                  profileLoaded={currentFilePath !== null}
+                  combosCache={profileHwSectionsRef.current.combos}
+                  onCombosChange={handleComboEntriesChange}
                 />
               )}
               {activeTab === 'lighting' && (
@@ -1201,6 +1303,9 @@ export default function App() {
                   onScrollSettingsChange={handleScrollSettingsChange}
                   perKeyColorsFilePath={perKeyColorsFilePath}
                   scrollTextFilePath={scrollTextFilePath}
+                  globalConfigs={globalLightingConfigs}
+                  onGlobalConfigsChange={setGlobalLightingConfigs}
+                  profileLoaded={currentFilePath !== null}
                 />
               )}
               {activeTab === 'firmware' && (

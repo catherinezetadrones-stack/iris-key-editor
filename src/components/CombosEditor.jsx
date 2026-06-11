@@ -119,7 +119,7 @@ function ComboEntryEditor({ entry, activeField, onFieldClick, onChange }) {
 
 const EMPTY_ENTRY = { keys: [0, 0, 0, 0], output: 0 };
 
-export default function CombosEditor({ device, comboDescriptions, onComboDescriptionsChange, macroDescriptions, tapDanceDescriptions }) {
+export default function CombosEditor({ device, comboDescriptions, onComboDescriptionsChange, macroDescriptions, tapDanceDescriptions, reloadKey = 0, profileLoaded = false, combosCache = null, onCombosChange }) {
   const [vialStatus, setVialStatus] = useState(null);
   const [entries, setEntries]       = useState([]);
   const [selected, setSelected]     = useState(0);
@@ -129,6 +129,16 @@ export default function CombosEditor({ device, comboDescriptions, onComboDescrip
   const [activeField, setActiveField] = useState(DEFAULT_FIELD);
   const [pickerRequest, setPickerRequest] = useState(null);
   const [visibleCount, setVisibleCount]   = useState(1);
+
+  // Render-synced mirror of the cache prop so load() never depends on the
+  // cache's identity (hardware reads seed fresh arrays into the parent ref).
+  const combosCacheRef = useRef(null);
+  combosCacheRef.current = combosCache;
+
+  // Entries as last loaded/saved — i.e. what is actually persisted (keyboard or
+  // profile). handleSave merges the saved slot into this instead of mirroring
+  // the whole `entries` state, which may hold unsaved edits to other slots.
+  const persistedEntriesRef = useRef([]);
 
   const load = useCallback(async () => {
     if (!device) return;
@@ -140,7 +150,17 @@ export default function CombosEditor({ device, comboDescriptions, onComboDescrip
       if (!vs.unlocked)        { setStatus(''); return; }
       if (vs.combo_count === 0) { setStatus('No combo slots (firmware not compiled with COMBO_ENABLE)'); return; }
       setStatus('Loading…');
-      const data = await invoke('vial_get_all_combos', { count: vs.combo_count });
+      let data;
+      const cache = combosCacheRef.current;
+      if (profileLoaded && cache) {
+        // Profile is source of truth — show the profile's entries, not the
+        // (possibly stale) connected half's.
+        data = Array.from({ length: vs.combo_count }, (_, i) => cache[i] ?? { keys: [0, 0, 0, 0], output: 0 });
+      } else {
+        data = await invoke('vial_get_all_combos', { count: vs.combo_count });
+        onCombosChange?.(data);
+      }
+      persistedEntriesRef.current = data;
       setEntries(data);
       const nonEmpty = data.filter(e => e.output !== 0 || e.keys.some(k => k !== 0)).length;
       setVisibleCount(Math.max(nonEmpty, 1));
@@ -152,15 +172,20 @@ export default function CombosEditor({ device, comboDescriptions, onComboDescrip
     } catch (err) {
       setStatus(`Error: ${err}`);
     }
-  }, [device]);
+  }, [device, profileLoaded, onCombosChange]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [load, reloadKey]);
 
   const handleSave = async () => {
     if (!dirty) return;
     try {
       setStatus('Saving…');
       await invoke('vial_set_combo_entry', { idx: selected, entry: entries[selected] });
+      // Mirror only the slot just written into the profile-held cache — other
+      // slots may hold unsaved UI edits that are not on the keyboard.
+      const persisted = persistedEntriesRef.current.map((e, i) => (i === selected ? entries[selected] : e));
+      persistedEntriesRef.current = persisted;
+      onCombosChange?.(persisted);
       setDirty(false);
       setStatus('Saved');
       setTimeout(() => setStatus(''), 2000);

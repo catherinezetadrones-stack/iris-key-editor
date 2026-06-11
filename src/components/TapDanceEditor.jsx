@@ -122,7 +122,7 @@ function EntryEditor({ entry, activeField, onFieldClick, onChange }) {
 
 const EMPTY_ENTRY = { on_tap: 0, on_hold: 0, on_double_tap: 0, on_tap_hold: 0, tapping_term_ms: 0 };
 
-export default function TapDanceEditor({ device, tapDanceDescriptions, macroDescriptions }) {
+export default function TapDanceEditor({ device, tapDanceDescriptions, macroDescriptions, reloadKey = 0, profileLoaded = false, tapDanceCache = null, onTapDanceChange }) {
   const [vialStatus, setVialStatus]   = useState(null);
   const [entries, setEntries]         = useState([]);
   const [selected, setSelected]       = useState(0);
@@ -135,6 +135,16 @@ export default function TapDanceEditor({ device, tapDanceDescriptions, macroDesc
   // while the user is browsing other categories.
   const [pickerRequest, setPickerRequest] = useState(null);
 
+  // Render-synced mirror of the cache prop so load() never depends on the
+  // cache's identity (hardware reads seed fresh arrays into the parent ref).
+  const tapDanceCacheRef = useRef(null);
+  tapDanceCacheRef.current = tapDanceCache;
+
+  // Entries as last loaded/saved — i.e. what is actually persisted (keyboard or
+  // profile). handleSave merges the saved slot into this instead of mirroring
+  // the whole `entries` state, which may hold unsaved edits to other slots.
+  const persistedEntriesRef = useRef([]);
+
   const load = useCallback(async () => {
     if (!device) return;
     setStatus('Detecting VIAL…');
@@ -145,7 +155,17 @@ export default function TapDanceEditor({ device, tapDanceDescriptions, macroDesc
       if (!vs.unlocked)  { setStatus(''); return; }
       if (vs.td_count === 0) { setStatus('No tap dance slots (firmware not compiled with TAP_DANCE_ENABLE)'); return; }
       setStatus('Loading…');
-      const data = await invoke('vial_get_all_tap_dance', { count: vs.td_count });
+      let data;
+      const cache = tapDanceCacheRef.current;
+      if (profileLoaded && cache) {
+        // Profile is source of truth — show the profile's entries, not the
+        // (possibly stale) connected half's.
+        data = Array.from({ length: vs.td_count }, (_, i) => cache[i] ?? { ...EMPTY_ENTRY });
+      } else {
+        data = await invoke('vial_get_all_tap_dance', { count: vs.td_count });
+        onTapDanceChange?.(data);
+      }
+      persistedEntriesRef.current = data;
       setEntries(data);
       setSelected(0);
       setActiveField(DEFAULT_FIELD);
@@ -155,15 +175,20 @@ export default function TapDanceEditor({ device, tapDanceDescriptions, macroDesc
     } catch (err) {
       setStatus(`Error: ${err}`);
     }
-  }, [device]);
+  }, [device, profileLoaded, onTapDanceChange]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [load, reloadKey]);
 
   const handleSave = async () => {
     if (!dirty) return;
     try {
       setStatus('Saving…');
       await invoke('vial_set_tap_dance_entry', { idx: selected, entry: entries[selected] });
+      // Mirror only the slot just written into the profile-held cache — other
+      // slots may hold unsaved UI edits that are not on the keyboard.
+      const persisted = persistedEntriesRef.current.map((e, i) => (i === selected ? entries[selected] : e));
+      persistedEntriesRef.current = persisted;
+      onTapDanceChange?.(persisted);
       setDirty(false);
       setStatus('Saved');
       setTimeout(() => setStatus(''), 2000);

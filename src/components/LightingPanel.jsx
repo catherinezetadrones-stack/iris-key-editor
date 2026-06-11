@@ -6,7 +6,7 @@ import { buildPerKeyColorsCCode, hsvToRgb255, NUM_LEDS } from '../codegen/perKey
 import { buildScrollTape, buildScrollCCode } from '../codegen/scrollText';
 import './LightingPanel.css';
 
-const DEFAULT_STATE = { effect: 6, speed: 128, hue: 0, sat: 255, val: 100 };
+export const DEFAULT_STATE = { effect: 6, speed: 128, hue: 0, sat: 255, val: 100 };
 
 // ── Color utilities ────────────────────────────────────────────────────────────
 
@@ -49,6 +49,9 @@ export default function LightingPanel({
   selectedKeys = null, // Set of "row,col" ids when multi-select is active
   perKeyColorsFilePath = '',
   scrollTextFilePath = '',
+  globalConfigs,
+  onGlobalConfigsChange,
+  profileLoaded = false,
 }) {
   // Resolve LED index from the main grid's selected key
   const selectedKeyLedIdx = useMemo(() => {
@@ -80,20 +83,14 @@ export default function LightingPanel({
   }, [selectedKeys, selectedKeyLedIdx]);
   const log = addDebugLog ?? (() => {});
 
-  // Global per-layer configs (local — read from keyboard, not persisted to profile)
-  const [configs, setConfigs] = useState(
-    Array.from({ length: layerCount }, () => ({ ...DEFAULT_STATE }))
-  );
+  // Global per-layer configs are owned by App (globalConfigs prop) so the two
+  // panel instances (compact editor-mode + Lighting tab) stay in sync and the
+  // profile can persist them. The setter is App's setState, so updater
+  // functions work as before.
+  const configs = globalConfigs ?? Array.from({ length: layerCount }, () => ({ ...DEFAULT_STATE }));
+  const setConfigs = onGlobalConfigsChange ?? (() => {});
   const [status, setStatus] = useState('');
   const [dirty,  setDirty]  = useState(false);
-
-  // Extend configs when layers are added
-  useEffect(() => {
-    setConfigs(prev => {
-      if (prev.length >= layerCount) return prev;
-      return [...prev, ...Array.from({ length: layerCount - prev.length }, () => ({ ...DEFAULT_STATE }))];
-    });
-  }, [layerCount]);
 
   // Sub-tab: 'perkey' | 'global' | 'scrolltext'
   const [subTab, setSubTab] = useState('perkey');
@@ -125,6 +122,9 @@ export default function LightingPanel({
 
   const load = useCallback(async () => {
     if (!device) return;
+    // Profile is source of truth — keep the profile-seeded configs instead of
+    // reading the (possibly stale) connected half.
+    if (profileLoaded) { setStatus(''); return; }
     try {
       setStatus('Reading lighting…');
       const current = await invoke('get_lighting');
@@ -135,7 +135,7 @@ export default function LightingPanel({
       setStatus(`Load error: ${err}`);
       log(`Lighting load error: ${err}`);
     }
-  }, [device]);
+  }, [device, profileLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { load(); }, [load]);
 
@@ -146,7 +146,7 @@ export default function LightingPanel({
   }, [device]);
 
   const handleChange = async (field, value) => {
-    const updated = { ...configs[layer], [field]: Number(value) };
+    const updated = { ...(configs[layer] ?? DEFAULT_STATE), [field]: Number(value) };
     setConfigs(prev => prev.map((c, i) => i === layer ? updated : c));
     setDirty(true);
     await applyToKeyboard(updated);
@@ -176,7 +176,7 @@ export default function LightingPanel({
   };
 
   const ensureDirectMode = useCallback(async () => {
-    const direct = { ...configs[layer], effect: 1 };
+    const direct = { ...(configs[layer] ?? DEFAULT_STATE), effect: 1 };
     await applyToKeyboard(direct);
     setConfigs(prev => prev.map((c, i) => i === layer ? direct : c));
   }, [configs, layer, applyToKeyboard]);
@@ -330,7 +330,7 @@ export default function LightingPanel({
     );
   }
 
-  const cfg        = configs[layer];
+  const cfg        = configs[layer] ?? DEFAULT_STATE;
   const previewColor = hsvToCss(cfg.hue, cfg.sat, cfg.val);
   const selColor   = selectedLed !== null ? (perKeyColors?.[layer]?.[selectedLed] ?? null) : null;
 

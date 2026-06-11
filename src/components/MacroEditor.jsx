@@ -109,7 +109,7 @@ function ExtraMacroCodeModal({ code, onClose, copied, onCopy, filePath, onSave, 
 
 // ── Main component ───────────────────────────────────────────────────────────
 
-export default function MacroEditor({ device, addDebugLog, reloadKey = 0, extraMacros, onExtraMacrosChange, extraMacrosFilePath, macroDescriptions, onMacroDescriptionsChange }) {
+export default function MacroEditor({ device, addDebugLog, reloadKey = 0, extraMacros, onExtraMacrosChange, extraMacrosFilePath, macroDescriptions, onMacroDescriptionsChange, profileLoaded = false, viaMacrosCache = null, onViaMacrosChange }) {
   const log = addDebugLog ?? (() => {});
   const [macros, setMacros]             = useState(null);
   const [bufferSize, setBufferSize]     = useState(0);
@@ -127,16 +127,33 @@ export default function MacroEditor({ device, addDebugLog, reloadKey = 0, extraM
   const prevMatrixRef = useRef(null);
   const layer0SnapshotRef = useRef(null);
 
+  // Render-synced mirror of the cache prop. load() reads it through the ref so
+  // the cache is never a useCallback dependency — each hardware read seeds a
+  // fresh array into the parent ref, and depending on its identity would
+  // re-trigger load on every App render.
+  const viaMacrosCacheRef = useRef(null);
+  viaMacrosCacheRef.current = viaMacrosCache;
+
   const load = useCallback(async () => {
     if (!device) return;
     try {
       setStatus('Reading macro data…');
       const info = await invoke('get_macro_info');
       log(`Macros: ${info.count} slots, ${info.buffer_size} byte buffer`);
-      const raw  = await invoke('read_macros');
-      const firstNonZero = raw.findIndex(b => b !== 0);
-      log(`Macro buffer: first non-zero byte at index ${firstNonZero === -1 ? 'none (empty)' : firstNonZero}`);
-      const parsed = parseBuffer(raw, info.count);
+      let parsed;
+      const cache = viaMacrosCacheRef.current;
+      if (profileLoaded && cache) {
+        // Profile is source of truth — populate from the profile-held cache
+        // instead of reading the (possibly stale) connected half.
+        parsed = Array.from({ length: info.count }, (_, i) => cache[i] ?? []);
+        log('Macros: loaded from profile (profile is source of truth)');
+      } else {
+        const raw  = await invoke('read_macros');
+        const firstNonZero = raw.findIndex(b => b !== 0);
+        log(`Macro buffer: first non-zero byte at index ${firstNonZero === -1 ? 'none (empty)' : firstNonZero}`);
+        parsed = parseBuffer(raw, info.count);
+        onViaMacrosChange?.({ macros: parsed, macroCount: info.count, bufferSize: info.buffer_size });
+      }
       const populated = parsed.filter(m => m.length > 0).length;
       log(`Macro parse: ${populated}/${info.count} slots have actions`);
       setMacros(parsed);
@@ -151,7 +168,7 @@ export default function MacroEditor({ device, addDebugLog, reloadKey = 0, extraM
       setStatus(`Load error: ${err}`);
       log(`Macro load error: ${err}`);
     }
-  }, [device]);
+  }, [device, profileLoaded, onViaMacrosChange]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { load(); }, [load, reloadKey]);
 
@@ -161,6 +178,9 @@ export default function MacroEditor({ device, addDebugLog, reloadKey = 0, extraM
       setStatus('Saving…');
       const bytes = serializeBuffer(macros, bufferSize);
       await invoke('write_macros', { data: bytes });
+      // Mirror the now-persisted macros into the profile-held cache so a
+      // subsequent profile Save exports them without reading hardware.
+      onViaMacrosChange?.({ macros, macroCount, bufferSize });
       setDirty(false);
       setStatus('Saved');
       setTimeout(() => setStatus(''), 2000);
