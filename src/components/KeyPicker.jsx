@@ -249,13 +249,37 @@ const KEY_CATEGORIES = [
 
 const ALL_KEYS = KEY_CATEGORIES.flatMap((c) => c.keys);
 
+// ── "Add modifiers" (QK_MODS) helpers ─────────────────────────────────────────
+// Mod-wrapped keycodes: 0x0100–0x1FFF = basic keycode | (mod bits << 8).
+// Bits: 0x01 Ctrl, 0x02 Shift, 0x04 Alt, 0x08 GUI; 0x10 makes ALL of them
+// right-hand (QMK shares a single right-hand flag — left/right cannot mix).
+
+const MOD_BUTTONS = [
+  { label: 'Left Shift', bit: 0x02, right: false }, { label: 'Right Shift', bit: 0x02, right: true },
+  { label: 'Left Ctrl',  bit: 0x01, right: false }, { label: 'Right Ctrl',  bit: 0x01, right: true },
+  { label: 'Left Alt',   bit: 0x04, right: false }, { label: 'Right Alt',   bit: 0x04, right: true },
+  { label: 'Left Win',   bit: 0x08, right: false }, { label: 'Right Win',   bit: 0x08, right: true },
+];
+
+const isBasicCode = (code) => code > 0x0000 && code <= 0x00ff;
+const isModWrapped = (code) => code >= 0x0100 && code <= 0x1fff;
+
+// Combine a base key with mod bits. Mods only apply to basic keycodes;
+// anything else (layer keys, TD, LT, MT, macros…) passes through untouched.
+function composeMods(base, mods) {
+  return mods !== 0 && isBasicCode(base) ? ((mods << 8) | base) : base;
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function KeyPicker({ onSelect, focusRequest, macroDescriptions, tapDanceDescriptions }) {
+export default function KeyPicker({ onSelect, focusRequest, macroDescriptions, tapDanceDescriptions, enableModifiers = false }) {
   const [category, setCategory] = useState('Numbers');
   const [search, setSearch] = useState('');
   const [highlightCode, setHighlightCode] = useState(null);
   const [hoveredCode, setHoveredCode] = useState(null);
+  // Current base key + toggled mod bits — only meaningful when enableModifiers.
+  const [baseCode, setBaseCode] = useState(0);
+  const [modBits, setModBits]   = useState(0);
   const highlightTimerRef = useRef(null);
 
   const clearHighlight = () => {
@@ -265,7 +289,17 @@ export default function KeyPicker({ onSelect, focusRequest, macroDescriptions, t
 
   useEffect(() => {
     if (focusRequest == null) return;
-    const code = focusRequest.code;
+    let code = focusRequest.code;
+    // Seed the modifier toggles from the current field value, and focus the
+    // base key in the grid (mod-wrapped codes have no picker button of their own).
+    if (enableModifiers && isModWrapped(code)) {
+      setBaseCode(code & 0x00ff);
+      setModBits((code >> 8) & 0x1f);
+      code = code & 0x00ff;
+    } else {
+      setBaseCode(code);
+      setModBits(0);
+    }
     const cat = KEY_CATEGORIES.find((c) => c.keys.some((k) => k.code === code));
     if (cat) {
       setSearch('');
@@ -288,8 +322,41 @@ export default function KeyPicker({ onSelect, focusRequest, macroDescriptions, t
     ? ALL_KEYS.filter((k) => k.name.toLowerCase().includes(search.toLowerCase()))
     : (KEY_CATEGORIES.find((c) => c.name === category)?.keys ?? []);
 
-  // Hovering a key takes priority; otherwise fall back to the currently-focused key.
-  const descriptionCode = hoveredCode ?? focusRequest?.code ?? null;
+  const handleKeyClick = (code) => {
+    let emit = code;
+    if (enableModifiers) {
+      if (isBasicCode(code) || code === 0) {
+        // Toggled modifiers persist across base-key picks (Oryx-style): the
+        // active toggles below the grid wrap whichever basic key is clicked.
+        emit = composeMods(code, modBits);
+        setBaseCode(code);
+      } else {
+        // Non-basic keys (layers, TD, LT, MT, macros…) can't carry mods.
+        setBaseCode(code);
+        setModBits(0);
+      }
+    }
+    onSelect(emit);
+    clearHighlight();
+  };
+
+  const handleModToggle = (bit, right) => {
+    let next = modBits ^ bit;
+    if ((next & 0x0f) === 0) next = 0;            // no mods left → clear right flag too
+    else next = right ? (next | 0x10) : (next & 0x0f);
+    setModBits(next);
+    if (isBasicCode(baseCode)) onSelect(composeMods(baseCode, next));
+  };
+
+  const modsUnavailable = baseCode > 0x00ff;       // non-basic selection
+  const modsActive      = (modBits & 0x0f) !== 0;
+  const rightActive     = (modBits & 0x10) !== 0;
+  const composedCode    = composeMods(baseCode, modBits);
+
+  // Hovering a key takes priority; otherwise fall back to the current selection
+  // (with mods applied) so the description tracks the combo being built.
+  const currentCode = enableModifiers && focusRequest != null ? composedCode : (focusRequest?.code ?? null);
+  const descriptionCode = hoveredCode ?? currentCode;
   const description = resolveKeyDescription(descriptionCode, macroDescriptions, tapDanceDescriptions);
 
   return (
@@ -328,7 +395,7 @@ export default function KeyPicker({ onSelect, focusRequest, macroDescriptions, t
                 key={key.code}
                 className={`picker-key${highlightCode === key.code ? ' highlighted' : ''}`}
                 data-keycode={key.code}
-                onClick={() => { onSelect(key.code); clearHighlight(); }}
+                onClick={() => handleKeyClick(key.code)}
                 onMouseEnter={() => setHoveredCode(key.code)}
                 onMouseLeave={() => setHoveredCode(null)}
               >
@@ -340,6 +407,41 @@ export default function KeyPicker({ onSelect, focusRequest, macroDescriptions, t
         </div>
 
       </div>
+
+      {enableModifiers && (
+        <div className="key-picker-mods">
+          <div className="key-picker-mods-header">
+            <span className="key-picker-mods-title">Add modifiers</span>
+            <span className="key-picker-mods-preview">
+              {modsUnavailable
+                ? 'Not available for layer/TD/macro keys'
+                : modsActive
+                  ? (isBasicCode(baseCode)
+                      ? (decodeQuantum(composedCode) || `0x${composedCode.toString(16).padStart(4, '0')}`)
+                      : 'Pick a key to apply the modifiers')
+                  : 'Send e.g. Ctrl + Backspace by holding just this one key'}
+            </span>
+          </div>
+          <div className="key-picker-mods-grid">
+            {MOD_BUTTONS.map(({ label, bit, right }) => {
+              const active = (modBits & bit) !== 0 && right === rightActive;
+              // QMK has one shared right-hand flag — left and right mods can't mix.
+              const disabled = modsUnavailable || (modsActive && right !== rightActive);
+              return (
+                <button
+                  key={label}
+                  className={`picker-mod-btn${active ? ' active' : ''}`}
+                  disabled={disabled}
+                  title={disabled && !modsUnavailable ? 'Left and right modifiers cannot be combined' : undefined}
+                  onClick={() => handleModToggle(bit, right)}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -308,6 +308,7 @@ export default function TapDanceEditor({ device, tapDanceDescriptions, macroDesc
             focusRequest={pickerRequest}
             macroDescriptions={macroDescriptions}
             tapDanceDescriptions={tapDanceDescriptions}
+            enableModifiers
           />
         </div>
       </div>

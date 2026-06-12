@@ -31,7 +31,7 @@ function TdCodeModal({ code, onClose, copied, onCopy, tapDanceFilePath, onSave, 
   );
 }
 
-export default function TapDanceKeyPanel({ selectedKey, currentLayer, tapDanceKeys, onTapDanceKeysChange, tapDanceFilePath, tdKeyAssignments = [], onTdKeyAssignmentsChange, tapDanceDescriptions, onTapDanceDescriptionsChange }) {
+export default function TapDanceKeyPanel({ selectedKey, currentLayer, tapDanceKeys, onTapDanceKeysChange, tapDanceFilePath, tdKeyAssignments = [], onTdKeyAssignmentsChange, onApplyTdAssignment, onClearTdAssignment, tapDanceDescriptions, onTapDanceDescriptionsChange }) {
   const [activeTdField, setActiveTdField] = useState(null);
   const [pickerRequest, setPickerRequest]   = useState(null);
   const [showCodeModal, setShowCodeModal]   = useState(false);
@@ -112,9 +112,14 @@ export default function TapDanceKeyPanel({ selectedKey, currentLayer, tapDanceKe
       next[n] = { keyId };
       return next;
     });
+    // Write TD(n) to the keymap (hardware + cache) on every layer this key has
+    // tap dance config — previously nothing was written until the next import.
+    onApplyTdAssignment?.(n, keyId);
   };
 
   const handleRemoveAssignment = () => {
+    // Clear the TD(n) keycode we wrote to the keymap, then drop the record.
+    onClearTdAssignment?.(currentAssignedIndex, keyId);
     onTdKeyAssignmentsChange(prev => {
       const next = [...prev];
       next[currentAssignedIndex] = null;
@@ -135,18 +140,31 @@ export default function TapDanceKeyPanel({ selectedKey, currentLayer, tapDanceKe
 
   const removeEntry = () => {
     if (!keyId) return;
+    // Does any OTHER layer still have tap dance config for this key? If so the
+    // TD(n) slot stays valid there and only this layer's keycode is cleared.
+    const stillConfiguredElsewhere = Object.entries(tapDanceKeys).some(([L, layerObj]) => {
+      if (parseInt(L, 10) === currentLayer) return false;
+      const e = layerObj?.[keyId];
+      return e && FIELDS.some(f => (e[f.key] ?? 0) !== 0);
+    });
     onTapDanceKeysChange(prev => {
       const layerCopy = { ...(prev[currentLayer] ?? {}) };
       delete layerCopy[keyId];
       return { ...prev, [currentLayer]: layerCopy };
     });
-    // Also clear any VIA assignment so the slot is not re-applied on next import
-    if (onTdKeyAssignmentsChange && currentAssignedIndex >= 0) {
-      onTdKeyAssignmentsChange(prev => {
-        const next = [...prev];
-        next[currentAssignedIndex] = null;
-        return next;
-      });
+    if (currentAssignedIndex >= 0) {
+      if (stillConfiguredElsewhere) {
+        onClearTdAssignment?.(currentAssignedIndex, keyId, [currentLayer]);
+      } else {
+        // Last layer with config — clear the keycode everywhere and drop the
+        // assignment so the slot is not re-applied on next import.
+        onClearTdAssignment?.(currentAssignedIndex, keyId);
+        onTdKeyAssignmentsChange?.(prev => {
+          const next = [...prev];
+          next[currentAssignedIndex] = null;
+          return next;
+        });
+      }
     }
     setActiveTdField(null);
   };
@@ -245,7 +263,7 @@ export default function TapDanceKeyPanel({ selectedKey, currentLayer, tapDanceKe
               placeholder="0"
               onChange={e => updateEntry('tapping_term_ms', parseInt(e.target.value) || 0)}
             />
-            <span className="td-term-unit">ms (0 = global)</span>
+            <span className="td-term-unit">ms (0 = global, 200 ms)</span>
           </div>
 
           {hasAny && (
@@ -260,7 +278,7 @@ export default function TapDanceKeyPanel({ selectedKey, currentLayer, tapDanceKe
               {currentAssignedIndex >= 0 ? (
                 <div className="td-assign-row">
                   <span className="td-assign-badge">TD({currentAssignedIndex})</span>
-                  <span className="td-assign-desc">auto-applied on profile import</span>
+                  <span className="td-assign-desc">written to configured layers; re-applied on import</span>
                   <button className="td-assign-remove" onClick={handleRemoveAssignment}>Remove</button>
                 </div>
               ) : (
@@ -290,7 +308,7 @@ export default function TapDanceKeyPanel({ selectedKey, currentLayer, tapDanceKe
                 Selecting: <strong>{FIELDS.find(f => f.key === activeTdField)?.label}</strong>
                 <button className="td-picker-close" onClick={() => setActiveTdField(null)}>✕</button>
               </div>
-              <KeyPicker onSelect={handlePickerSelect} focusRequest={pickerRequest} />
+              <KeyPicker onSelect={handlePickerSelect} focusRequest={pickerRequest} enableModifiers />
             </div>
           )}
         </>

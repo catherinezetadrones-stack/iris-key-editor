@@ -9,6 +9,20 @@ export function keycodeToC(code) {
     if (name && name.length > 0 && name !== '▽' && name !== '') return `KC_${name}`;
     return `(uint16_t)0x${code.toString(16).padStart(4, '0')}`;
   }
+  // QK_MODS: 0x0100–0x1FFF → nested modifier macros, e.g. LCTL(LSFT(KC_BSPC)).
+  // Bit 0x10 selects right-hand variants for all active mods (QMK shares one
+  // right-hand flag across the whole mod byte).
+  if (code >= 0x0100 && code <= 0x1FFF) {
+    const mods = (code >> 8) & 0x1F;
+    const side = (mods & 0x10) ? 'R' : 'L';
+    let out = keycodeToC(code & 0xFF);
+    // Wrap GUI innermost → CTL outermost: LCTL(LSFT(LALT(LGUI(KC_X))))
+    if (mods & 0x08) out = `${side}GUI(${out})`;
+    if (mods & 0x04) out = `${side}ALT(${out})`;
+    if (mods & 0x02) out = `${side}SFT(${out})`;
+    if (mods & 0x01) out = `${side}CTL(${out})`;
+    return out;
+  }
   if ((code & 0xFFF0) === 0x5220) return `MO(${code & 0xF})`;
   if ((code & 0xF000) === 0x4000) {
     const layer = (code >> 8) & 0xF;

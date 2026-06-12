@@ -246,6 +246,22 @@ export function decodeQuantum(code) {
   const direct = KEYCODE_MAP[code];
   if (direct !== undefined) return direct;
 
+  // QK_MODS: 0x0100–0x1FFF → modifier-wrapped basic keycode, e.g. CTL+SFT+BSPC.
+  // Bit 0x10 in the mod byte selects right-hand variants for ALL active mods.
+  // Hardcoded shifted symbols (0x0220 '!' etc.) hit the direct lookup above first.
+  if (code >= 0x0100 && code <= 0x1fff) {
+    const mods  = (code >> 8) & 0x1f;
+    const basic = code & 0x00ff;
+    const right = (mods & 0x10) !== 0;
+    const names = [];
+    if (mods & 0x01) names.push(right ? 'RCTL' : 'CTL');
+    if (mods & 0x02) names.push(right ? 'RSFT' : 'SFT');
+    if (mods & 0x04) names.push(right ? 'RALT' : 'ALT');
+    if (mods & 0x08) names.push(right ? 'RGUI' : 'GUI');
+    const keyName = KEYCODE_MAP[basic] || `0x${basic.toString(16)}`;
+    return names.length ? `${names.join('+')}+${keyName}` : keyName;
+  }
+
   // QK_LAYER_TAP: 0x4000–0x4FFF → LT(layer, key)
   if ((code & 0xF000) === 0x4000) {
     const layer   = (code >> 8) & 0x0f;

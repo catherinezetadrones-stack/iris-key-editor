@@ -209,3 +209,75 @@
   animation: picker-key-pulse 2s ease-in-out infinite;
 }
 
+/* ── "Add modifiers" footer ──────────────────────────────────────────────── */
+
+.key-picker-mods {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  padding: 6px 10px 8px;
+}
+
+.key-picker-mods-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.key-picker-mods-title {
+  font-size: 0.72rem;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.key-picker-mods-preview {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--accent);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.key-picker-mods-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+
+.picker-mod-btn {
+  padding: 5px 4px;
+  font-size: 0.75rem;
+  text-align: center;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+  white-space: nowrap;
+}
+
+.picker-mod-btn::before { display: none; }
+
+.picker-mod-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(0, 217, 255, 0.08);
+  box-shadow: none;
+}
+
+.picker-mod-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(0, 217, 255, 0.14);
+}
+
+.picker-mod-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+

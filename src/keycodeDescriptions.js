@@ -174,6 +174,23 @@ export function getKeycodeDescription(code) {
   const exact = EXACT[code];
   if (exact !== undefined) return exact;
 
+  // QK_MODS: 0x0100–0x1FFF → modifier(s) + basic key sent as one keypress.
+  // Multiple mod bits may be set at once; bit 0x10 makes them all right-hand.
+  // Shifted-symbol EXACT entries (0x0220 '!' etc.) take precedence above.
+  if (code >= 0x0100 && code <= 0x1fff) {
+    const mods  = (code >> 8) & 0x1f;
+    const basic = code & 0x00ff;
+    const right = (mods & 0x10) !== 0;
+    const names = [];
+    if (mods & 0x01) names.push(right ? 'Right Ctrl' : 'Ctrl');
+    if (mods & 0x02) names.push(right ? 'Right Shift' : 'Shift');
+    if (mods & 0x04) names.push(right ? 'Right Alt' : 'Alt');
+    if (mods & 0x08) names.push(right ? 'Right Win' : 'Win');
+    const keyName = KEYCODE_MAP[basic] || `0x${basic.toString(16)}`;
+    if (names.length === 0) return getKeycodeDescription(basic);
+    return `Sends ${[...names, keyName].join(' + ')} as a single keypress.`;
+  }
+
   // QK_LAYER_TAP: 0x4000–0x4FFF → LT(layer, key)
   if ((code & 0xF000) === 0x4000) {
     const layer = (code >> 8) & 0x0f;

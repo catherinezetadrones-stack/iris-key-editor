@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { invoke } from '@tauri-apps/api/tauri';
 import { decodeQuantum, KEY_TO_LED, HALVES } from './keyboardLayout';
 import { parseBuffer, serializeBuffer } from './macroCodec';
+import { TD_FIELDS } from './codegen/tapDanceKeys';
 import './App.css';
 
 import KeyboardGrid from './components/KeyboardGrid';
@@ -254,6 +255,82 @@ export default function App() {
       logVerbose(`  └─ decoded: ${decodeQuantum(newKeycode) ?? 'unknown'} | layer ${currentLayer}`);
     } catch (err) {
       addDebugLog(`Key write error: ${err}`);
+    }
+  };
+
+  // Layers where this key has any tap dance action configured. TD(n) must sit
+  // on each of them — the generated firmware callbacks switch on the active
+  // layer, so the keycode itself has to be present per layer to trigger at all.
+  const tdConfiguredLayers = (tdKeys, keyId) =>
+    Object.entries(tdKeys ?? {})
+      .filter(([, layerObj]) => {
+        const e = layerObj?.[keyId];
+        return e && TD_FIELDS.some(f => (e[f.key] ?? 0) !== 0);
+      })
+      .map(([layer]) => parseInt(layer, 10));
+
+  // Write TD(n) for an assignment to hardware + caches on every configured
+  // layer. Shared by profile import and the panel's Assign button. `tdKeys` is
+  // passed explicitly because import runs before the state update lands.
+  const applyTdAssignment = async (n, keyId, tdKeys) => {
+    const key = [...HALVES.left, ...HALVES.right].find(k => k.id === keyId);
+    if (!key) { addDebugLog(`TD(${n}): key "${keyId}" not found — skipped`); return 0; }
+    const tdKeycode = 0x5700 | n;
+    let layers = tdConfiguredLayers(tdKeys, keyId);
+    if (layers.length === 0) layers = [0]; // legacy profiles without per-layer TD config
+    let applied = 0;
+    for (const L of layers) {
+      try {
+        if (L < firmwareLayerCountRef.current) {
+          await invoke('write_key', { layer: L, row: key.viaRow, col: key.viaCol, keycode: tdKeycode });
+        }
+        if (allKeymapsRef.current[L]) {
+          allKeymapsRef.current[L] = allKeymapsRef.current[L].map(
+            (r, ri) => ri === key.viaRow ? r.map((kc, ci) => ci === key.viaCol ? tdKeycode : kc) : r
+          );
+        }
+        if (L === currentLayer) {
+          setKeymap(prev => prev.map(
+            (r, ri) => ri === key.viaRow ? r.map((kc, ci) => ci === key.viaCol ? tdKeycode : kc) : r
+          ));
+        }
+        addDebugLog(`TD(${n}) → layer ${L} [${key.viaRow},${key.viaCol}]`);
+        applied++;
+      } catch (err) {
+        addDebugLog(`TD(${n}) apply to layer ${L} failed: ${err}`);
+      }
+    }
+    if (applied > 0) setLayoutDirty(true);
+    return applied;
+  };
+
+  // Undo applyTdAssignment: clear TD(n) back to KC_NO on every layer where this
+  // key currently holds exactly that keycode (so manually-placed keys with other
+  // codes are never touched). Used when an assignment or TD entry is removed.
+  const clearTdAssignment = async (n, keyId, onlyLayers = null) => {
+    const key = [...HALVES.left, ...HALVES.right].find(k => k.id === keyId);
+    if (!key) return;
+    const tdKeycode = 0x5700 | n;
+    for (let L = 0; L < allKeymapsRef.current.length; L++) {
+      if (onlyLayers && !onlyLayers.includes(L)) continue;
+      if (allKeymapsRef.current[L]?.[key.viaRow]?.[key.viaCol] !== tdKeycode) continue;
+      try {
+        if (L < firmwareLayerCountRef.current) {
+          await invoke('write_key', { layer: L, row: key.viaRow, col: key.viaCol, keycode: 0x0000 });
+        }
+        allKeymapsRef.current[L] = allKeymapsRef.current[L].map(
+          (r, ri) => ri === key.viaRow ? r.map((kc, ci) => ci === key.viaCol ? 0x0000 : kc) : r
+        );
+        if (L === currentLayer) {
+          setKeymap(prev => prev.map(
+            (r, ri) => ri === key.viaRow ? r.map((kc, ci) => ci === key.viaCol ? 0x0000 : kc) : r
+          ));
+        }
+        setLayoutDirty(true);
+        addDebugLog(`TD(${n}) cleared from layer ${L} [${key.viaRow},${key.viaCol}]`);
+      } catch (err) {
+        addDebugLog(`TD(${n}) clear on layer ${L} failed: ${err}`);
+      }
     }
   };
 
@@ -894,32 +971,16 @@ export default function App() {
       if (Array.isArray(profile.td_key_assignments) && profile.td_key_assignments.length > 0) {
         setTdKeyAssignments(profile.td_key_assignments);
         addDebugLog('TD key assignments restored');
-        // Auto-apply TD(n) keycodes to layer 0 for each assigned key
-        const allKeys = [...HALVES.left, ...HALVES.right];
+        // Auto-apply TD(n) to every layer where the key has tap dance config —
+        // the firmware callbacks are per-layer, so the keycode must live on
+        // those same layers (previously this was hardcoded to layer 0).
         let applied = 0;
         for (let n = 0; n < profile.td_key_assignments.length; n++) {
           const assignment = profile.td_key_assignments[n];
           if (!assignment?.keyId) continue;
-          const key = allKeys.find(k => k.id === assignment.keyId);
-          if (!key) { addDebugLog(`TD(${n}) assignment: key "${assignment.keyId}" not found — skipped`); continue; }
-          const tdKeycode = 0x5700 | n;
-          try {
-            if (firmwareLayerCountRef.current > 0) {
-              await invoke('write_key', { layer: 0, row: key.viaRow, col: key.viaCol, keycode: tdKeycode });
-            }
-            if (allKeymapsRef.current[0]) {
-              allKeymapsRef.current[0] = allKeymapsRef.current[0].map(
-                (r, ri) => ri === key.viaRow ? r.map((kc, ci) => ci === key.viaCol ? tdKeycode : kc) : r
-              );
-            } else {
-              addDebugLog(`TD(${n}) auto-apply: layer 0 cache absent — hardware written, cache not updated`);
-            }
-            applied++;
-          } catch (err) {
-            addDebugLog(`TD(${n}) auto-apply failed: ${err}`);
-          }
+          applied += await applyTdAssignment(n, assignment.keyId, profile.tap_dance_keys);
         }
-        if (applied > 0) addDebugLog(`Auto-applied ${applied} TD keycode(s) to layer 0`);
+        if (applied > 0) addDebugLog(`Auto-applied TD keycode(s) to ${applied} layer slot(s)`);
       }
       if (profile.custom_labels && typeof profile.custom_labels === 'object') {
         let labels = profile.custom_labels;
@@ -1244,6 +1305,8 @@ export default function App() {
                           tapDanceFilePath={tapDanceFilePath}
                           tdKeyAssignments={tdKeyAssignments}
                           onTdKeyAssignmentsChange={handleTdKeyAssignmentsChange}
+                          onApplyTdAssignment={(n, keyId) => applyTdAssignment(n, keyId, tapDanceKeys)}
+                          onClearTdAssignment={clearTdAssignment}
                           tapDanceDescriptions={tapDanceDescriptions}
                           onTapDanceDescriptionsChange={handleTapDanceDescriptionsChange}
                         />

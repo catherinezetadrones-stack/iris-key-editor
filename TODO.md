@@ -18,24 +18,16 @@ and summarize what changed.
 
 ## UI / UX Bugs
 
-- **Multi select functionality does not assign per-key colors** - I tested the multi select functionality and was able to assign a keycode to several keys at once. This same type of multi assignment does not work for per-key color.
-
-- **Macro recorder stops recording if 'enter' is hit** - when macro recording starts we need to remove focus from that the record button so that any key can be pressed during the recording without prematurely stopping the recording.
-
-- **Refined dirty flag** - If I change a key the dirty flag correctly shows there is a diff. However, if I manually revert the change back to the original, flag still shows there is a diff when there is nothing actually changed. If this is difficult, only report why it is difficult and what would be required...and we will do this item at another time.
-
-- **Combos and Macros aren't loaded when I open a profile** - When on the combos or macros tab the configurations aren't visually loaded when I open a profile. I must navigate away to another tab and come back for the change to be seen.
-
-- **Tap Dance Description on Main Keyboard layout** - If a key is assigned a tap dance then and that tap dance definition has a description, then the tooltip should show the tap dance description otherwise it falls back to its other options.
-
 ## Firmware Bugs
-
-- **Build & Flash wizard does not auto-jump into bootloader mode** - During the one-click Build & Flash flow the "Waiting for half N in bootloader mode" step just sat there; the keyboard had to be put into bootloader mode manually (via the assigned key combo). The wizard's auto-jump path (`detect_devices` → `jump_bootloader` inside `flashHalf` in `FirmwarePanel.jsx`) needs investigation — e.g. whether `detect_devices` sees the board while the wizard is polling, whether the VIA HID handle is held open elsewhere, or whether the jump command needs a retry. Can be tested individually without a full Build & Flash run. This QMK doc may be a good resource to help solve this bug https://docs.qmk.fm/keycodes#quantum-keycodes
-
-- **Loaded profile is source of truth** - When a profile is loaded (App.jsx state `currentFilePath !== null`), the profile is the source of truth — the app must NOT pull key configuration from the plugged-in keyboard. Only read configuration from the keyboard when NO profile is loaded. Concrete failure being fixed: during guided Build & Flash of this split keyboard, the user flashes one half, unplugs it, plugs in the OTHER half (which still has old config in EEPROM); the app detects the "new" device and pulls its stale keymap/macros into the editor state, so subsequently generated sources / saved profiles contain old data unless the user remembers to re-open the profile first.
-The only time we should read key configuration from the keyboard is if there is no profile loaded
+- **Build & Flash cancelling may not be working** - I started to manually flash my firmware and then changed my mind and started to use the automated process of Build & Flash, I clicked the button but then realized I was already in bootloader mode so then I hit the cancel button. I proceeded to unplug and plug back in my keyboard. I started the automated process again but then noticed in the log double lines for everything happening in the compilation. This leads me to believe the `Cancel` button is not actually working as intended to stop all processes in the Build & Flash automated process at the users discretion
 
 ## Planned Features
+
+- **Add Modifiers inside tap dance, without a macro** - When editing tap dance on the editor screen it would be nice to be able assign a modifier and an additional key. Currently, if I want setup a workflow where I tap a key to backspace and I hold a the same key to do ctrl + backspace..I would need to setup a macro to do the ctrl + backspace.
+
+This seems like a waste of a macro.
+
+I know we are able combine keycodes in our callback without needing to define it as a combo or a macro. I know oryx editor lets you do this. The way they do this is "Add modifiers" functionality, its simple and super powerful and lets you save your macros for more complex things.
 
 ### App UI / UX Improvements
 
