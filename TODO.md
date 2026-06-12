@@ -23,16 +23,10 @@ and summarize what changed.
 
 ## Planned Features
 
-- **Add Modifiers inside tap dance, without a macro** - When editing tap dance on the editor screen it would be nice to be able assign a modifier and an additional key. Currently, if I want setup a workflow where I tap a key to backspace and I hold a the same key to do ctrl + backspace..I would need to setup a macro to do the ctrl + backspace.
-
-This seems like a waste of a macro.
-
-I know we are able combine keycodes in our callback without needing to define it as a combo or a macro. I know oryx editor lets you do this. The way they do this is "Add modifiers" functionality, its simple and super powerful and lets you save your macros for more complex things.
-
 ### App UI / UX Improvements
 
 _Straightforward changes to the existing interface_
-
+- **Add ability to delete a single layer** - Currently, I dont have the ability to delete a layer in app. I think a good place for this is next to the buttons (copy, paste, clear). It should have a pop up warning just like the clear button...After the delete the user can then save the modified layout manually. I don't think we need a "Delete and Save" option inside the delete modal.
 
 ### New App Features
 

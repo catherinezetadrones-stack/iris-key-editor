@@ -33,6 +33,7 @@ export default function App() {
   const [copiedLayer, setCopiedLayer] = useState(null); // cached keymap for paste
   const [layoutDirty, setLayoutDirty] = useState(false);
   const [showClearModal, setShowClearModal] = useState(false);
+  const [showDeleteLayerModal, setShowDeleteLayerModal] = useState(false);
   const [showScanLog, setShowScanLog] = useState(false);
   const [perKeyColorsFilePath, setPerKeyColorsFilePath] = useState(
     () => localStorage.getItem('perKeyColorsFilePath') || ''
@@ -456,6 +457,65 @@ export default function App() {
       addDebugLog(`Layer ${currentLayer} cleared${currentLayer >= firmwareLayerCountRef.current ? ' (local only)' : ''}`);
     } catch (err) {
       addDebugLog(`Clear error: ${err}`);
+    }
+  };
+
+  const handleDeleteLayer = () => {
+    if (!selectedDevice || layerCount <= 1) return;
+    setShowDeleteLayerModal(true);
+  };
+
+  // Remove the current layer everywhere: every per-layer structure shifts down
+  // by one, the shift is mirrored to the keyboard (shifted layers rewritten,
+  // old top layer blanked), and the layout is marked dirty. The profile file is
+  // NOT saved here — the user saves manually afterward.
+  const executeDeleteLayer = async () => {
+    setShowDeleteLayerModal(false);
+    const L = currentLayer;
+    const newCount = layerCount - 1;
+    if (newCount < 1) return;
+    try {
+      // Object keyed by layer index (tapDanceKeys, customLabels): drop L,
+      // renumber everything above it.
+      const shiftLayerKeyed = (obj) => {
+        const next = {};
+        Object.entries(obj ?? {}).forEach(([k, v]) => {
+          const n = parseInt(k, 10);
+          if (Number.isNaN(n) || n === L) return;
+          next[n > L ? n - 1 : n] = v;
+        });
+        return next;
+      };
+
+      allKeymapsRef.current.splice(L, 1);
+      setLayerNames(prev => prev.filter((_, i) => i !== L));
+      setLightingPerKeyColors(prev => prev.filter((_, i) => i !== L));
+      setGlobalLightingConfigs(prev => prev.filter((_, i) => i !== L));
+      setScrollSettings(prev => prev
+        .filter((_, i) => i !== L)
+        .map(s => ({ ...s, target_layer: s.target_layer > L ? s.target_layer - 1 : s.target_layer })));
+      setTapDanceKeys(prev => shiftLayerKeyed(prev));
+      setCustomLabels(prev => shiftLayerKeyed(prev));
+      setLayerCount(newCount);
+
+      // Mirror the shift to the keyboard within firmware capacity.
+      const blank = Array.from({ length: 10 }, () => Array(6).fill(0x0000));
+      for (let i = L; i < newCount && i < firmwareLayerCountRef.current; i++) {
+        await invoke('write_layer', { layer: i, keymap: allKeymapsRef.current[i] ?? blank });
+      }
+      if (newCount < firmwareLayerCountRef.current) {
+        await invoke('write_layer', { layer: newCount, keymap: blank });
+      }
+
+      const newCurrent = Math.min(L, newCount - 1);
+      setCurrentLayer(newCurrent);
+      setSelectedKey(null);
+      setSelectedKeys(new Set());
+      await loadKeymap(newCurrent);
+      setLayoutDirty(true);
+      addDebugLog(`Layer ${L} deleted — ${newCount} layer(s) remain. Save the profile to persist.`);
+    } catch (err) {
+      addDebugLog(`Delete layer error: ${err}`);
     }
   };
 
@@ -1150,6 +1210,7 @@ export default function App() {
           <button onClick={handleCopyLayer} disabled={!selectedDevice || !keymap.length} title="Copy this layer's keycodes into clipboard">Copy</button>
           <button onClick={handlePasteLayer} disabled={!selectedDevice || !copiedLayer} title="Paste copied layer keycodes here">Paste</button>
           <button onClick={handleClearLayer} disabled={!selectedDevice} title="Set all keys to transparent (KC_TRNS)">Clear</button>
+          <button onClick={handleDeleteLayer} disabled={!selectedDevice || layerCount <= 1} title="Delete this layer — higher layers shift down">Delete</button>
         </div>
         <div className="layer-toolbar-group">
           <button onClick={handleNew} title="Create a new profile file">New</button>
@@ -1420,6 +1481,24 @@ export default function App() {
           </aside>
         )}
       </div>
+      {showDeleteLayerModal && (
+        <div className="clear-modal-overlay" onClick={() => setShowDeleteLayerModal(false)}>
+          <div className="clear-modal" onClick={e => e.stopPropagation()}>
+            <h3 className="clear-modal-title">Delete Layer {currentLayer}{layerNames[currentLayer] ? ` — ${layerNames[currentLayer]}` : ''}</h3>
+            <p className="clear-modal-body">
+              This removes the layer's keys, lighting, scroll text, tap dance config, and labels,
+              and shifts all higher layers down by one — on the keyboard immediately.
+              Keys that reference layer numbers (MO, TG, TO, LT, tap dance definitions) are
+              <strong> not</strong> renumbered — review them afterward.
+              Save the profile manually to persist the change.
+            </p>
+            <div className="clear-modal-actions">
+              <button className="primary" onClick={executeDeleteLayer}>Delete Layer</button>
+              <button onClick={() => setShowDeleteLayerModal(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
       {showClearModal && (
         <div className="clear-modal-overlay" onClick={() => setShowClearModal(false)}>
           <div className="clear-modal" onClick={e => e.stopPropagation()}>
