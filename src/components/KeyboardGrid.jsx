@@ -18,7 +18,7 @@ function labelFor(key, keymap, customLabels, currentLayer) {
   return `0x${code.toString(16).padStart(4, '0')}`;
 }
 
-export default function KeyboardGrid({ keymap, currentLayer, selectedKey, selectedKeys, onKeySelect, onKeyRightClick, keyLedColors, keyBadges, customLabels, macroDescriptions, tapDanceDescriptions }) {
+export default function KeyboardGrid({ keymap, currentLayer, selectedKey, selectedKeys, onKeySelect, onKeyRightClick, keyLedColors, keyBadges, customLabels, macroDescriptions, tapDanceDescriptions, pressedKeys, readOnly = false }) {
   const handleKeyClick = (e, viaRow, viaCol) => {
     onKeySelect?.({ row: viaRow, col: viaCol }, e.shiftKey);
   };
@@ -47,7 +47,7 @@ export default function KeyboardGrid({ keymap, currentLayer, selectedKey, select
                 marginLeft: key.marginLeft,
                 transform:  key.rotation ? `rotate(${key.rotation}deg)` : undefined,
               }}
-              onContextMenu={(e) => handleKeyRightClick(e, key.viaRow, key.viaCol)}
+              onContextMenu={readOnly ? undefined : (e) => handleKeyRightClick(e, key.viaRow, key.viaCol)}
             >
               <KeyButton
                 keyName={labelFor(key, keymap, customLabels, currentLayer)}
@@ -56,9 +56,11 @@ export default function KeyboardGrid({ keymap, currentLayer, selectedKey, select
                 tertiaryLabel={customTertiary}
                 isThumb={key.thumb}
                 isSelected={!!selectedKeys?.has(`${key.viaRow},${key.viaCol}`)}
-                onClick={(e) => handleKeyClick(e, key.viaRow, key.viaCol)}
+                onClick={readOnly ? undefined : (e) => handleKeyClick(e, key.viaRow, key.viaCol)}
                 glowColor={keyLedColors?.get(key.id)}
                 tooltip={resolveKeyDescription(keymap?.[key.viaRow]?.[key.viaCol], macroDescriptions, tapDanceDescriptions)}
+                forcePressed={!!pressedKeys?.has(key.id)}
+                readOnly={readOnly}
               />
             </div>
           );

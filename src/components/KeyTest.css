@@ -88,72 +88,12 @@
   letter-spacing: 1px;
 }
 
-/* =============================================================================
-   KEY APPEARANCE
-   ============================================================================= */
-
-.test-key {
-  width: 48px;
-  height: 48px;
-  background: linear-gradient(135deg, #1a1f3a 0%, #0f1428 100%);
-  border: 1px solid var(--border);
-  border-radius: 2px;
-  color: var(--text-secondary);
-  font-family: var(--font-mono);
-  font-size: 0.65rem;
-  font-weight: 600;
-  text-transform: uppercase;
+.overlay-enter-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 5px 14px;
+  font-size: 0.78rem;
   letter-spacing: 0.5px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 2px;
-  position: relative;
-  -webkit-user-select: none;
-  user-select: none;
-  box-shadow:
-    0 4px 8px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  transition:
-    background 0.06s ease,
-    border-color 0.06s ease,
-    box-shadow 0.06s ease,
-    color 0.06s ease,
-    transform 0.06s ease;
-}
-
-.test-key-sub {
-  position: absolute;
-  top: 3px;
-  right: 4px;
-  font-size: 0.5rem;
-  font-weight: 400;
-  color: var(--text-secondary);
-  opacity: 0.7;
-  line-height: 1;
-  text-transform: none;
-  letter-spacing: 0;
-}
-
-.test-key.thumb {
-  background: linear-gradient(135deg, #1a2540 0%, #0f1a35 100%);
-}
-
-.test-key.pressed {
-  background: linear-gradient(135deg, rgba(0, 217, 255, 0.25) 0%, rgba(0, 217, 255, 0.12) 100%);
-  border-color: var(--accent);
-  color: var(--accent);
-  transform: translateY(2px);
-  box-shadow:
-    0 0 18px rgba(0, 217, 255, 0.55),
-    0 0 6px  rgba(0, 217, 255, 0.8),
-    0 2px 4px rgba(0, 0, 0, 0.4),
-    inset 0 0 10px rgba(0, 217, 255, 0.15);
-}
-
-.test-key.thumb.pressed {
-  background: linear-gradient(135deg, rgba(0, 217, 255, 0.3) 0%, rgba(0, 217, 255, 0.15) 100%);
 }
 
 /* =============================================================================

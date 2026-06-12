@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/tauri';
-import { decodeQuantum, KEY_TO_LED, HALVES } from './keyboardLayout';
+import { appWindow, LogicalSize, LogicalPosition } from '@tauri-apps/api/window';
+import { decodeQuantum, HALVES } from './keyboardLayout';
 import { parseBuffer, serializeBuffer } from './macroCodec';
 import { TD_FIELDS } from './codegen/tapDanceKeys';
+import { buildKeyLedColors, buildTapDanceBadges } from './keyDerived';
 import './App.css';
 
 import KeyboardGrid from './components/KeyboardGrid';
@@ -16,6 +18,7 @@ import TapDanceKeyPanel from './components/TapDanceKeyPanel';
 import CombosEditor from './components/CombosEditor';
 import FirmwarePanel from './components/FirmwarePanel';
 import LightingPanel, { DEFAULT_STATE as DEFAULT_LIGHTING_STATE } from './components/LightingPanel';
+import KeyboardOverlay from './components/KeyboardOverlay';
 
 export default function App() {
   const [devices, setDevices] = useState([]);
@@ -34,6 +37,8 @@ export default function App() {
   const [layoutDirty, setLayoutDirty] = useState(false);
   const [showClearModal, setShowClearModal] = useState(false);
   const [showDeleteLayerModal, setShowDeleteLayerModal] = useState(false);
+  const [overlayMode, setOverlayMode] = useState(false);
+  const [overlayOpacity, setOverlayOpacity] = useState(0.1);
   const [showScanLog, setShowScanLog] = useState(false);
   const [perKeyColorsFilePath, setPerKeyColorsFilePath] = useState(
     () => localStorage.getItem('perKeyColorsFilePath') || ''
@@ -408,6 +413,91 @@ export default function App() {
     setActiveTab(tab);
     logVerbose(`Tab: ${tab}`);
   };
+
+  // ── Keyboard overlay mode ───────────────────────────────────────────────────
+  // Transforms the MAIN window into a small always-on-top transparent overlay
+  // (single window keeps HID polling/state in one place). The config minimum
+  // size (1100x700) must be relaxed before shrinking, and restored on exit.
+  // Exit always re-maximizes, matching the configured startup state.
+
+  // Last overlay geometry (logical px), restored on the next enter so the
+  // overlay reappears exactly where the user left it. Persisted across runs.
+  const overlayBoundsRef = useRef((() => {
+    try { return JSON.parse(localStorage.getItem('overlayBounds')) ?? null; }
+    catch { return null; }
+  })());
+
+  const enterOverlay = async () => {
+    setOverlayMode(true);
+    try {
+      await appWindow.setMinSize(new LogicalSize(420, 240));
+      await appWindow.setAlwaysOnTop(true);
+      await appWindow.setDecorations(false);
+      await appWindow.unmaximize();
+      const b = overlayBoundsRef.current;
+      const w = b?.w ?? 980;
+      const h = b?.h ?? 460;
+      await appWindow.setSize(new LogicalSize(w, h));
+      if (b && Number.isFinite(b.x) && Number.isFinite(b.y)) {
+        await appWindow.setPosition(new LogicalPosition(b.x, b.y));
+      }
+      // WebView2 can miss the bounds change when the window leaves the
+      // maximized state and shrinks in one motion, leaving stale white window
+      // surface where the webview no longer paints. After a short settle,
+      // jiggle the size by 1px to force the webview child to recompute its
+      // bounds — same effect as the user dragging a resize edge.
+      await new Promise(r => setTimeout(r, 80));
+      await appWindow.setSize(new LogicalSize(w + 1, h));
+      await appWindow.setSize(new LogicalSize(w, h));
+      addDebugLog('Overlay mode entered (Esc or Exit to leave)');
+    } catch (err) {
+      addDebugLog(`Overlay enter error: ${err}`);
+    }
+  };
+
+  const exitOverlay = async () => {
+    // Capture the overlay's geometry before restoring the main window so the
+    // next enter returns to the same spot/size.
+    try {
+      const [pos, size, factor] = await Promise.all([
+        appWindow.outerPosition(), appWindow.innerSize(), appWindow.scaleFactor(),
+      ]);
+      const b = {
+        x: pos.x / factor, y: pos.y / factor,
+        w: size.width / factor, h: size.height / factor,
+      };
+      overlayBoundsRef.current = b;
+      try { localStorage.setItem('overlayBounds', JSON.stringify(b)); } catch { /* ignore */ }
+    } catch { /* geometry capture is best-effort */ }
+    setOverlayMode(false);
+    try {
+      await appWindow.setAlwaysOnTop(false);
+      await appWindow.setDecorations(true);
+      await appWindow.setMinSize(new LogicalSize(1100, 700));
+      await appWindow.maximize();
+      addDebugLog('Overlay mode exited');
+    } catch (err) {
+      addDebugLog(`Overlay exit error: ${err}`);
+    }
+  };
+
+  // Transparent document background + Esc-to-exit while the overlay is active.
+  // Layout effect so the body class lands before paint — avoids a one-frame
+  // flash of the opaque normal background behind the near-transparent overlay.
+  useLayoutEffect(() => {
+    // Both <html> and <body> paint opaque backgrounds (inline style in
+    // index.html) — both must go transparent for the desktop to show through.
+    document.documentElement.classList.toggle('overlay-active', overlayMode);
+    document.body.classList.toggle('overlay-active', overlayMode);
+    if (!overlayMode) return;
+    const onKey = (e) => { if (e.key === 'Escape') exitOverlay(); };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.documentElement.classList.remove('overlay-active');
+      document.body.classList.remove('overlay-active');
+    };
+  }, [overlayMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePickerRequest = (req) => {
     setPickerRequest(req);
@@ -833,19 +923,7 @@ export default function App() {
   // Computed per-key glow colors for the keyboard grid in lighting editor mode
   const keyLedColors = useMemo(() => {
     if (activeTab !== 'editor') return null;
-    const colors = lightingPerKeyColors[currentLayer];
-    if (!colors) return null;
-    const map = new Map();
-    KEY_TO_LED.forEach((ledIdx, keyId) => {
-      const hsv = colors[ledIdx];
-      if (!hsv) return;
-      const [h, s, v] = hsv;
-      const hDeg = Math.round((h / 255) * 360);
-      const sP = Math.round((s / 255) * 100);
-      const lP = Math.round((v / 255) * 50);
-      map.set(keyId, `hsl(${hDeg}, ${sP}%, ${lP}%)`);
-    });
-    return map.size > 0 ? map : null;
+    return buildKeyLedColors(lightingPerKeyColors[currentLayer]);
   }, [activeTab, currentLayer, lightingPerKeyColors]);
 
   const selectedKeyObj = useMemo(() => {
@@ -857,12 +935,7 @@ export default function App() {
 
   const tapDanceBadges = useMemo(() => {
     if (activeTab !== 'editor') return null;
-    const currentLayerTD = tapDanceKeys[currentLayer] ?? {};
-    const map = new Map();
-    Object.entries(currentLayerTD).forEach(([keyId, e]) => {
-      if (e.on_tap || e.on_hold || e.on_double_tap || e.on_tap_hold) map.set(keyId, 'TD');
-    });
-    return map.size > 0 ? map : null;
+    return buildTapDanceBadges(tapDanceKeys, currentLayer);
   }, [activeTab, currentLayer, tapDanceKeys]);
 
   const setLabelField = useCallback((field, val) => {
@@ -1116,6 +1189,31 @@ export default function App() {
       setIsFlashing(false);
     }
   };
+
+  // Overlay mode replaces the entire app tree: nothing else renders (so there
+  // is exactly one matrix poller), and the body background goes transparent
+  // via the overlay-active class.
+  if (overlayMode) {
+    return (
+      <KeyboardOverlay
+        opacity={overlayOpacity}
+        onOpacityChange={setOverlayOpacity}
+        onExit={exitOverlay}
+      >
+        <KeyTest
+          overlay
+          selectedDevice={selectedDevice}
+          numLayers={layerCount}
+          addDebugLog={addDebugLog}
+          customLabels={customLabels}
+          lightingPerKeyColors={lightingPerKeyColors}
+          tapDanceKeys={tapDanceKeys}
+          macroDescriptions={macroDescriptions}
+          tapDanceDescriptions={tapDanceDescriptions}
+        />
+      </KeyboardOverlay>
+    );
+  }
 
   return (
     <div className="app">
@@ -1469,7 +1567,18 @@ export default function App() {
                 />
               )}
               {activeTab === 'test' && (
-                <KeyTest selectedDevice={selectedDevice} numLayers={layerCount} addDebugLog={addDebugLog} logPolling={verboseDebug} />
+                <KeyTest
+                  selectedDevice={selectedDevice}
+                  numLayers={layerCount}
+                  addDebugLog={addDebugLog}
+                  logPolling={verboseDebug}
+                  customLabels={customLabels}
+                  lightingPerKeyColors={lightingPerKeyColors}
+                  tapDanceKeys={tapDanceKeys}
+                  macroDescriptions={macroDescriptions}
+                  tapDanceDescriptions={tapDanceDescriptions}
+                  onEnterOverlay={enterOverlay}
+                />
               )}
             </div>
           </div>

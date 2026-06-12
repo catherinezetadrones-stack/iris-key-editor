@@ -45,6 +45,19 @@
     inset 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
+/* Externally-driven pressed state (Key Test live highlighting) — strong glow,
+   unlike the subtle mouse click feedback above. */
+.key-button.live-pressed {
+  background: linear-gradient(135deg, rgba(0, 217, 255, 0.25) 0%, rgba(0, 217, 255, 0.12) 100%);
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow:
+    0 0 18px rgba(0, 217, 255, 0.55),
+    0 0 6px  rgba(0, 217, 255, 0.8),
+    0 2px 4px rgba(0, 0, 0, 0.4),
+    inset 0 0 10px rgba(0, 217, 255, 0.15);
+}
+
 .key-button.selected {
   border-color: var(--accent);
   background: linear-gradient(135deg, rgba(0, 217, 255, 0.15) 0%, rgba(0, 217, 255, 0.05) 100%);

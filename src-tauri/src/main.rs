@@ -668,6 +668,24 @@ fn compile_firmware(app_handle: tauri::AppHandle, qmk_home: Option<String>) -> R
 }
 
 fn main() {
+    // Transparent-window workaround: WebView2's GPU compositor drops the alpha
+    // channel of composited surfaces on transparent windows (white boxes behind
+    // scaled/animated content in overlay mode). Software compositing keeps
+    // transparency intact; this UI is light enough that the cost is negligible.
+    // Appends rather than overwrites in case the var is already set.
+    {
+        let flag = "--disable-gpu-compositing";
+        let existing = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").unwrap_or_default();
+        if !existing.contains(flag) {
+            let combined = if existing.is_empty() {
+                flag.to_string()
+            } else {
+                format!("{existing} {flag}")
+            };
+            std::env::set_var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", combined);
+        }
+    }
+
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             detect_devices,

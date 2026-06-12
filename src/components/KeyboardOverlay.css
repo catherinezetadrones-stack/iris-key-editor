@@ -1,0 +1,149 @@
+/* KeyboardOverlay.css — overlay-mode chrome (transparent desktop keyboard) */
+
+/* Document background must not paint while the overlay is active —
+   the window itself is transparent (tauri.conf.json "transparent": true).
+   index.html sets an opaque background on BOTH html and body inline, so both
+   carry the override class (applied by App's overlay layout effect). */
+html.overlay-active,
+html.overlay-active body,
+body.overlay-active,
+body.overlay-active #root {
+  background: transparent;
+}
+
+.kb-overlay {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+}
+
+/* Control strip — floats over the keys, auto-hides until the mouse returns.
+   Kept readable regardless of backdrop opacity. */
+.kb-overlay-strip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 10px;
+  background: rgba(10, 14, 30, 0.85);
+  border-bottom: 1px solid rgba(0, 217, 255, 0.25);
+  cursor: move;
+  user-select: none;
+  -webkit-user-select: none;
+  opacity: 1;
+  transition: opacity 1.4s ease;
+}
+
+.kb-overlay-strip.hidden {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1.8s ease;
+}
+
+.kb-overlay-drag-hint {
+  flex: 1;
+  font-size: 0.7rem;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kb-overlay-opacity {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  letter-spacing: 0.5px;
+}
+
+.kb-overlay-opacity input[type="range"] {
+  width: 90px;
+  accent-color: var(--accent);
+}
+
+.kb-overlay-exit {
+  flex-shrink: 0;
+  padding: 2px 10px;
+  font-size: 0.7rem;
+  background: rgba(20, 26, 50, 0.9);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.kb-overlay-exit:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Scale-to-fit area — the full window; the strip overlays it when visible */
+.kb-overlay-fit {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+}
+
+/* Key Test rendered inside the overlay: drop its panel padding/scroll */
+.kb-overlay-content .key-test-overlay {
+  padding: 6px 12px;
+  height: auto;
+  overflow: visible;
+  background: transparent;
+}
+
+/* Resize grips — Tauri v1 undecorated windows lack native edge resize, so
+   these drive appWindow.setSize from pointer drags. Edges are invisible hit
+   areas; the corner shows a glyph while the strip is visible. */
+.kb-overlay-grip {
+  position: absolute;
+  z-index: 11;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.kb-overlay-grip.grip-e {
+  top: 0;
+  right: 0;
+  bottom: 18px;
+  width: 7px;
+  cursor: ew-resize;
+}
+
+.kb-overlay-grip.grip-s {
+  left: 0;
+  right: 18px;
+  bottom: 0;
+  height: 7px;
+  cursor: ns-resize;
+}
+
+.kb-overlay-grip.grip-se {
+  right: 0;
+  bottom: 0;
+  width: 20px;
+  height: 20px;
+  cursor: nwse-resize;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  font-size: 12px;
+  line-height: 1;
+  color: rgba(0, 217, 255, 0.0);
+  transition: color 1.4s ease;
+}
+
+.kb-overlay-grip.grip-se.visible {
+  color: rgba(0, 217, 255, 0.65);
+}

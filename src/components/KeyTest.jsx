@@ -4,9 +4,11 @@
 //   Visual    — keyboard diagram with live highlights using the verified matrix map
 //   Raw Matrix — full [row,col] grid from the VIA firmware for diagnosing mapping issues
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/tauri';
-import { HALVES, decodeQuantum, getSecondary } from '../keyboardLayout';
+import { HALVES } from '../keyboardLayout';
+import { buildKeyLedColors, buildTapDanceBadges } from '../keyDerived';
+import KeyboardGrid from './KeyboardGrid';
 import './KeyTest.css';
 import './TapDanceEditor.css'; // unlock overlay styles
 
@@ -16,15 +18,6 @@ const LT_BASE = 0x4000; // LT(n,key) = 0x4000 | (n<<8) | key
 const LT_HMASK = 0xF000;
 const ROWS = 10; // QMK matrix: rows 0-4 = left half, rows 5-9 = right half
 const COLS = 6;
-
-function labelFor(key, layerKeymap) {
-  const code = layerKeymap?.[key.viaRow]?.[key.viaCol];
-  if (code === undefined || code === null) return key.label;
-  const named = decodeQuantum(code);
-  if (named !== null) return named;
-  if (code <= 0x00ff) return key.label;
-  return `0x${code.toString(16).padStart(4, '0')}`;
-}
 
 // Map hardware (matrixRow, matrixCol) → {viaRow, viaCol} for all keys.
 // Built once at module load from the confirmed HALVES layout.
@@ -186,41 +179,31 @@ function RawMatrixView({ matrixState }) {
 
 // ─── Visual view (existing keyboard diagram) ─────────────────────────────────
 
-function VisualView({ matrixState, allLayers }) {
+function VisualView({ matrixState, allLayers, customLabels, lightingPerKeyColors, tapDanceKeys, macroDescriptions, tapDanceDescriptions, hideHint = false }) {
   const activeLayer = (matrixState && allLayers.length > 0)
     ? computeActiveLayer(matrixState, allLayers[0])
     : 0;
   const layerKeymap = allLayers[activeLayer];
 
-  const renderHalf = (side) => (
-    <div className={`keyboard-half ${side}`}>
-      <div className="hand-label">{side.toUpperCase()}</div>
-      <div className="key-grid">
-        {HALVES[side].map((key) => {
-          const pressed = matrixState?.[key.matrixRow]?.[key.matrixCol] ?? false;
-          return (
-            <div
-              key={key.id}
-              className="key-cell"
-              style={{ gridColumn: key.gridColumn, gridRow: key.gridRow, marginTop: key.marginTop }}
-            >
-              <div className={`test-key${pressed ? ' pressed' : ''}${key.thumb ? ' thumb' : ''}`}>
-                {(() => {
-                  const code = layerKeymap?.[key.viaRow]?.[key.viaCol];
-                  const sub  = getSecondary(code);
-                  return (
-                    <>
-                      {sub && <span className="test-key-sub">{sub}</span>}
-                      <span>{labelFor(key, layerKeymap)}</span>
-                    </>
-                  );
-                })()}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
+  // Live pressed keys → key ids. Recomputed every poll tick (50ms): keep cheap.
+  const pressedKeys = useMemo(() => {
+    if (!matrixState) return null;
+    const set = new Set();
+    for (const key of [...HALVES.left, ...HALVES.right]) {
+      if (matrixState[key.matrixRow]?.[key.matrixCol]) set.add(key.id);
+    }
+    return set;
+  }, [matrixState]);
+
+  // Same derived maps the editor builds for its current layer, but for the
+  // live hardware-active layer.
+  const keyLedColors = useMemo(
+    () => buildKeyLedColors(lightingPerKeyColors?.[activeLayer]),
+    [lightingPerKeyColors, activeLayer]
+  );
+  const tapDanceBadges = useMemo(
+    () => buildTapDanceBadges(tapDanceKeys, activeLayer),
+    [tapDanceKeys, activeLayer]
   );
 
   return (
@@ -229,13 +212,19 @@ function VisualView({ matrixState, allLayers }) {
         <div className={`layer-badge${activeLayer > 0 ? ' layer-badge-active' : ''}`}>
           Layer {activeLayer}
         </div>
-        <span className="key-test-hint">Hold a layer key to switch layers</span>
+        {!hideHint && <span className="key-test-hint">Hold a layer key to switch layers</span>}
       </div>
-      <div className="keyboard">
-        {renderHalf('left')}
-        <div className="keyboard-divider" />
-        {renderHalf('right')}
-      </div>
+      <KeyboardGrid
+        keymap={layerKeymap}
+        currentLayer={activeLayer}
+        pressedKeys={pressedKeys}
+        readOnly
+        keyLedColors={keyLedColors}
+        keyBadges={tapDanceBadges}
+        customLabels={customLabels}
+        macroDescriptions={macroDescriptions}
+        tapDanceDescriptions={tapDanceDescriptions}
+      />
     </>
   );
 }
@@ -305,7 +294,7 @@ function UnlockOverlay({ unlockKeys, onUnlock, onClose }) {
   );
 }
 
-export default function KeyTest({ selectedDevice, numLayers = 4, addDebugLog, logPolling = false }) {
+export default function KeyTest({ selectedDevice, numLayers = 4, addDebugLog, logPolling = false, customLabels, lightingPerKeyColors, tapDanceKeys, macroDescriptions, tapDanceDescriptions, overlay = false, onEnterOverlay }) {
   const log = addDebugLog ?? (() => {});
 
   const [allLayers, setAllLayers] = useState([]);
@@ -434,6 +423,23 @@ export default function KeyTest({ selectedDevice, numLayers = 4, addDebugLog, lo
     <div className="key-test-placeholder key-test-error-state">{errorMsg}</div>
   );
 
+  // Overlay variant: just the live visual, no header/mode toggle — the
+  // KeyboardOverlay wrapper supplies the chrome (drag strip, opacity, exit).
+  if (overlay) return (
+    <div className="key-test key-test-overlay">
+      <VisualView
+        matrixState={matrixState}
+        allLayers={allLayers}
+        customLabels={customLabels}
+        lightingPerKeyColors={lightingPerKeyColors}
+        tapDanceKeys={tapDanceKeys}
+        macroDescriptions={macroDescriptions}
+        tapDanceDescriptions={tapDanceDescriptions}
+        hideHint
+      />
+    </div>
+  );
+
   return (
     <div className="key-test">
       <div className="key-test-header">
@@ -456,10 +462,27 @@ export default function KeyTest({ selectedDevice, numLayers = 4, addDebugLog, lo
             ? 'Press every key to map physical positions → matrix coords'
             : 'Press keys on your keyboard'}
         </span>
+        {mode === 'visual' && onEnterOverlay && (
+          <button
+            className="overlay-enter-btn"
+            onClick={onEnterOverlay}
+            title="Pop out as a resizable always-on-top desktop overlay (Esc to return)"
+          >
+            Overlay
+          </button>
+        )}
       </div>
 
       {mode === 'visual'
-        ? <VisualView matrixState={matrixState} allLayers={allLayers} />
+        ? <VisualView
+            matrixState={matrixState}
+            allLayers={allLayers}
+            customLabels={customLabels}
+            lightingPerKeyColors={lightingPerKeyColors}
+            tapDanceKeys={tapDanceKeys}
+            macroDescriptions={macroDescriptions}
+            tapDanceDescriptions={tapDanceDescriptions}
+          />
         : <RawMatrixView matrixState={matrixState} />
       }
     </div>
