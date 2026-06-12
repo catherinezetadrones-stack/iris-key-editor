@@ -27,12 +27,9 @@ and summarize what changed.
 
 _Straightforward changes to the existing interface_
 
-- **Key Test Design - should match editor keyboard** - We should have the identical layout between the two keyboards (Editor and Key Test [Visual not raw matrix] ). All the colors, symbols, labels, and description too. Its basically a read only version of the editor keyboard...but key test just allows us to see our layers in real time. Which will hopefully help us on our new app feature.
-
 ### New App Features
 
 _More substantial additions to the app itself_
-- **Keyboard Overlay mode for key tester visual** - I want to be able to hit a button on the key test page and essentially, visually remove everything else in the entire app and just have a custom keyboard overlay for my computer with all the responsiveness that it currently has  - (It may need to be a separate window instead but not sure what would be best). It would be nice if I could resize the window for the key overlay so I can put it different part of my screen should I wish. I would be nice if the window was pinned 'On Top' of other windows...meaning that I could still interact with all other windows but see keyboard overlay. There should be an adjustable transparency for the background of overlay but default should be close to completely transparent. There should be a clear way to exit the overlay which should return you to the main App.
 
 ### Firmware related App Features
 
