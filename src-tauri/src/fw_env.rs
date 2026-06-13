@@ -411,16 +411,39 @@ pub fn flash_firmware_streamed(app_handle: tauri::AppHandle, firmware_path: Stri
 // ── Driver install ────────────────────────────────────────────────────────────
 
 /// Launch the bundled Zadig so the user can install the WinUSB driver for the
-/// STM32 DFU bootloader (0483:DF11). Zadig is a GUI and self-elevates, so this
-/// just starts it and returns — the UI shows the two clicks needed inside Zadig.
+/// STM32 DFU bootloader (0483:DF11).
+///
+/// Zadig's manifest requests administrator rights. Plain `CreateProcess`
+/// (what `Command::spawn` uses) cannot elevate and fails with os error 740
+/// (ERROR_ELEVATION_REQUIRED), which silently broke driver install. We launch
+/// it through ShellExecute's "runas" verb via PowerShell `Start-Process`, which
+/// raises the UAC prompt and elevates Zadig properly.
 #[tauri::command]
 pub fn launch_zadig() -> Result<String, String> {
     let zadig = env_root().join(r"bin\zadig.exe");
     if !zadig.exists() {
         return Err("Zadig is not in the installed pack — install the driver manually (see the Windows Setup guide).".into());
     }
-    Command::new(&zadig)
-        .spawn()
+    // Single-quote the path for PowerShell; the fixed AppData path contains no
+    // single quotes. Start-Process returns once the (elevated) process starts.
+    // Wrap in try/catch with -ErrorAction Stop so a declined/blocked UAC prompt
+    // is a terminating error → explicit `exit 1`; otherwise powershell exits 0.
+    // (Default $ErrorActionPreference is Continue, under which the failure would
+    // not reliably set a non-zero exit code.)
+    let status = Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-WindowStyle", "Hidden",
+            "-Command",
+            &format!(
+                "try {{ Start-Process -FilePath '{}' -Verb RunAs -ErrorAction Stop }} catch {{ exit 1 }}",
+                zadig.display()
+            ),
+        ])
+        .status()
         .map_err(|e| format!("Failed to launch Zadig: {e}"))?;
-    Ok("Zadig launched. In Zadig: Options → List All Devices, select 'STM32 BOOTLOADER', choose WinUSB, click Replace Driver.".into())
+    if !status.success() {
+        return Err("Zadig launch was cancelled or blocked (UAC declined). Run zadig.exe as administrator manually from the build environment's bin folder.".into());
+    }
+    Ok("Zadig launched (elevated). In Zadig: Options → List All Devices, select 'STM32 BOOTLOADER', choose WinUSB, click Replace Driver.".into())
 }

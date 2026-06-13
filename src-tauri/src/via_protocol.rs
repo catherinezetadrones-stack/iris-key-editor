@@ -52,6 +52,10 @@ pub mod cmd {
     pub const DYNAMIC_KEYMAP_GET_LAYER_COUNT: u8 = 0x11;
     pub const DYNAMIC_KEYMAP_GET_BUFFER: u8 = 0x12;
     pub const DYNAMIC_KEYMAP_SET_BUFFER: u8 = 0x13;
+    // Custom command handled by this keyboard's raw_hid_receive_kb (keymap.c):
+    // response r[1] == 0xA5 marker + r[2] = get_highest_layer(layer_state).
+    // Old firmware echoes the request unchanged (r[1] stays 0x00).
+    pub const GET_ACTIVE_LAYER: u8 = 0x59;
 }
 
 // VIALRGB extension — RGB Matrix control via VIA lighting commands (0x07/0x08).

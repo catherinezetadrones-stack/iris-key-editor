@@ -60,6 +60,22 @@ export PATH="$PATH:/c/Users/phbronson/.cargo/bin" && npm run tauri dev
 - `keymap.c` is hand-maintained in the bundled tree; the app only overwrites the generated sources (`keymap_layers.c`, `per_key_colors.c`, `scroll_text.c`, `tap_dance_keys.c`, `extra_macros.c`)
 - The Build & Flash wizard compiles this tree via `compile_bundled` (bundled MSYS2 toolchain)
 
+**fw-env companion edits — keep local dev and the shipped pack in sync:**
+
+The bundled fw-env tree is **not in the repo and not git-tracked**, so edits to it are invisible to version control and are **lost whenever the pack is freshly unpacked on a new machine**. Several edits required for a working build/flash live ONLY in this tree. This is the #1 source of "works on my machine but a fresh install is broken" bugs.
+
+Rule: whenever you add or depend on a fw-env tree edit, you MUST do BOTH, never one without the other:
+1. Apply it to the local bundled tree (so this machine builds/flashes), AND
+2. Record it in the **"Rebuild + ship a corrected fw-env pack"** task in `TODO.md` (so the shipped pack zip carries it).
+
+Currently required companion edits (all confirmed necessary 2026-06):
+- `quantum/vial.c` — `get_tapping_term` made `__attribute__((weak))` so the editor's generated keymap-level `get_tapping_term` (in `tap_dance_keys.c`) overrides it instead of colliding. Otherwise: `multiple definition of 'get_tapping_term'` link error.
+- `keymaps/vial/config.h` — `#define TAPPING_TERM 200`.
+- `keymaps/vial/keymap.c` — `raw_hid_receive_kb` (and `#include "raw_hid.h"`) handling **0x0B** (`id_bootloader_jump` → `bootloader_jump()`; VIA's own case is compiled out under `VIAL_INSECURE`, so without this the Build & Flash auto-jump never enters DFU) and **0x59** (`GET_ACTIVE_LAYER` for the Key Test layer badge).
+- `bin/libusb-1.0.dll` — must sit next to the pack's `bin/dfu-util.exe`; the dynamic dfu-util dies with `STATUS_DLL_NOT_FOUND` (`0xC0000135`) without it. The pack script copies it automatically when it sits beside the source `dfu-util.exe` (`src-tauri\binaries\`).
+
+Note: a firmware-side companion edit only takes effect once that firmware is actually flashed. The **bootloader-jump (0x0B)** handler is the classic chicken-and-egg: a board running firmware that lacks it must be put into the bootloader **manually** (PCB reset / key combo) for the first flash; auto-jump works on every flash thereafter.
+
 ---
 
 ## Planned Features

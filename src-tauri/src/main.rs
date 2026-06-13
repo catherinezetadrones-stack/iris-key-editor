@@ -129,6 +129,14 @@ fn get_matrix_state() -> Result<Vec<Vec<bool>>, String> {
     ViaKeyboard::open()?.get_matrix_state()
 }
 
+/// Returns the firmware's currently active layer (highest in layer_state),
+/// or None when the firmware predates the custom GET_ACTIVE_LAYER command —
+/// the frontend then falls back to inferring the layer from held MO/LT keys.
+#[tauri::command]
+fn get_active_layer() -> Result<Option<u8>, String> {
+    ViaKeyboard::open()?.get_active_layer()
+}
+
 /// Write a full layer in bulk (much faster than per-key writes for copy/paste/import).
 #[tauri::command]
 fn write_layer(layer: u8, keymap: Vec<Vec<u16>>) -> Result<(), String> {
@@ -696,6 +704,7 @@ fn main() {
             jump_bootloader,
             flash_firmware,
             get_matrix_state,
+            get_active_layer,
             write_layer,
             read_all_layers,
             save_profile,

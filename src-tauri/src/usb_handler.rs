@@ -176,6 +176,19 @@ impl ViaKeyboard {
         Ok(state)
     }
 
+    /// Query the live firmware layer via the custom GET_ACTIVE_LAYER command.
+    /// Returns Some(layer) when the firmware recognizes the command (sets the
+    /// 0xA5 marker in r[1]); None on older firmware, which just echoes the
+    /// request back unchanged — callers fall back to MO/LT inference.
+    pub fn get_active_layer(&self) -> Result<Option<u8>, String> {
+        let r = self.command(&[cmd::GET_ACTIVE_LAYER, 0x00])?;
+        if r[1] == 0xA5 {
+            Ok(Some(r[2]))
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Write a whole layer using the bulk SET_BUFFER command.
     /// `keycodes` must be MATRIX_ROWS × MATRIX_COLS; mismatched sizes are rejected.
     pub fn write_layer_buffer(&self, layer: u8, keycodes: &[Vec<u16>]) -> Result<(), String> {

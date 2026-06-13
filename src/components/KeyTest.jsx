@@ -57,14 +57,22 @@ function computeActiveLayer(matrixState, layer0) {
 function useMatrixPolling(active) {
   const [matrixState, setMatrixState] = useState(null);
   const [pollError, setPollError] = useState(null);
-  const inFlightRef = useRef(false);
+  // Live firmware layer via the custom GET_ACTIVE_LAYER raw-HID command.
+  // null = unknown/unsupported (old firmware) → callers fall back to MO/LT
+  // inference. Support is sticky once seen so one failed poll doesn't flick
+  // the UI back to inference.
+  const [firmwareLayer, setFirmwareLayer] = useState(null);
 
+  // ── Matrix poll ──────────────────────────────────────────────────────────
+  // Fast 50ms loop for live keypress highlighting. Kept fully independent of
+  // the layer query below so its responsiveness never depends on a second HID
+  // round-trip. Own in-flight guard so a slow read can't stack up calls.
   useEffect(() => {
     if (!active) return;
-
+    let inFlight = false;
     const poll = async () => {
-      if (inFlightRef.current) return;
-      inFlightRef.current = true;
+      if (inFlight) return;
+      inFlight = true;
       try {
         const state = await invoke('get_matrix_state');
         setMatrixState(state);
@@ -72,16 +80,50 @@ function useMatrixPolling(active) {
       } catch (err) {
         setPollError(String(err));
       } finally {
-        inFlightRef.current = false;
+        inFlight = false;
       }
     };
-
     const id = setInterval(poll, 50);
     poll();
     return () => clearInterval(id);
   }, [active]);
 
-  return { matrixState, pollError };
+  // ── Layer query ──────────────────────────────────────────────────────────
+  // Independent ~200ms loop with its own in-flight guard, so the extra HID
+  // round-trip never blocks the matrix poll. Tracks TO/TG/DF/tap-dance layer
+  // moves (no key held). Restarts on device change so a previous device's
+  // detected support can't pin a stale layer. Gives up after a few empty
+  // replies on firmware that lacks the command, to avoid burning a round-trip
+  // forever — the caller then falls back to MO/LT inference.
+  useEffect(() => {
+    if (!active) return;
+    setFirmwareLayer(null);
+    let inFlight = false;
+    let supported = false;
+    let misses = 0;
+    let id = null;
+    const stop = () => { if (id !== null) { clearInterval(id); id = null; } };
+    const poll = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const layer = await invoke('get_active_layer');
+        if (layer !== null && layer !== undefined) {
+          supported = true;
+          setFirmwareLayer(layer);
+        } else if (!supported && ++misses >= 3) {
+          setFirmwareLayer(null); // old firmware — stop querying, stay on inference
+          stop();
+        }
+      } catch { /* transient layer-poll failure — keep last known value, keep polling */ }
+      finally { inFlight = false; }
+    };
+    id = setInterval(poll, 200);
+    poll();
+    return () => stop();
+  }, [active]);
+
+  return { matrixState, pollError, firmwareLayer };
 }
 
 // ─── Raw Matrix view ─────────────────────────────────────────────────────────
@@ -179,10 +221,14 @@ function RawMatrixView({ matrixState }) {
 
 // ─── Visual view (existing keyboard diagram) ─────────────────────────────────
 
-function VisualView({ matrixState, allLayers, customLabels, lightingPerKeyColors, tapDanceKeys, macroDescriptions, tapDanceDescriptions, hideHint = false }) {
-  const activeLayer = (matrixState && allLayers.length > 0)
+function VisualView({ matrixState, allLayers, firmwareLayer, customLabels, lightingPerKeyColors, tapDanceKeys, macroDescriptions, tapDanceDescriptions, hideHint = false }) {
+  // Prefer the firmware-reported layer (tracks TO/TG/DF/tap-dance layer_move
+  // with no key held); fall back to held-MO/LT inference on old firmware.
+  // Clamp defensively in case layer_state reports a layer beyond what we read.
+  const inferredLayer = (matrixState && allLayers.length > 0)
     ? computeActiveLayer(matrixState, allLayers[0])
     : 0;
+  const activeLayer = Math.min(firmwareLayer ?? inferredLayer, Math.max(allLayers.length - 1, 0));
   const layerKeymap = allLayers[activeLayer];
 
   // Live pressed keys → key ids. Recomputed every poll tick (50ms): keep cheap.
@@ -304,7 +350,7 @@ export default function KeyTest({ selectedDevice, numLayers = 4, addDebugLog, lo
   const [vialStatus, setVialStatus] = useState(null); // null = not yet checked
   const [showUnlock, setShowUnlock] = useState(false);
 
-  const { matrixState, pollError } = useMatrixPolling(phase === 'ready');
+  const { matrixState, pollError, firmwareLayer } = useMatrixPolling(phase === 'ready');
 
   // Surface poll errors.
   useEffect(() => {
@@ -430,6 +476,7 @@ export default function KeyTest({ selectedDevice, numLayers = 4, addDebugLog, lo
       <VisualView
         matrixState={matrixState}
         allLayers={allLayers}
+        firmwareLayer={firmwareLayer}
         customLabels={customLabels}
         lightingPerKeyColors={lightingPerKeyColors}
         tapDanceKeys={tapDanceKeys}
@@ -477,6 +524,7 @@ export default function KeyTest({ selectedDevice, numLayers = 4, addDebugLog, lo
         ? <VisualView
             matrixState={matrixState}
             allLayers={allLayers}
+            firmwareLayer={firmwareLayer}
             customLabels={customLabels}
             lightingPerKeyColors={lightingPerKeyColors}
             tapDanceKeys={tapDanceKeys}
