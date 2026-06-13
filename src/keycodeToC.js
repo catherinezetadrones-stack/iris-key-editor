@@ -1,12 +1,27 @@
 import { KEYCODE_MAP } from './keyboardLayout';
 
+// Basic keycodes (0x00–0xFF) whose KEYCODE_MAP entry is a display LABEL that is
+// not a valid QMK constant suffix — punctuation, numpad symbols, KC_PENT. Without
+// these, codegen emitted invalid identifiers like `KC_.` / `KC_P/`. (Letters,
+// digits, F-keys, nav, etc. work because their label already equals the suffix.)
+const KC_C_NAME_OVERRIDE = {
+  0x2d: 'MINS', 0x2e: 'EQL',  0x2f: 'LBRC', 0x30: 'RBRC', 0x31: 'BSLS',
+  0x33: 'SCLN', 0x34: 'QUOT', 0x35: 'GRV',  0x36: 'COMM', 0x37: 'DOT',  0x38: 'SLSH',
+  0x54: 'PSLS', 0x55: 'PAST', 0x56: 'PMNS', 0x57: 'PPLS', 0x58: 'PENT', 0x63: 'PDOT',
+};
+
 // Convert QMK 16-bit keycode to C macro string
 export function keycodeToC(code) {
   if (!code || code === 0) return 'KC_NO';
   if (code === 0x0001) return 'KC_TRNS';
   if (code <= 0x00FF) {
+    const override = KC_C_NAME_OVERRIDE[code];
+    if (override) return `KC_${override}`;
     const name = KEYCODE_MAP[code];
-    if (name && name.length > 0 && name !== '▽' && name !== '') return `KC_${name}`;
+    // Only emit KC_<name> when <name> is a valid C identifier suffix; otherwise
+    // fall back to the numeric keycode. For the 0x00–0xFF range the value IS the
+    // keycode, so (uint16_t)0xNN is exactly equivalent and always compiles.
+    if (name && /^[A-Za-z0-9_]+$/.test(name)) return `KC_${name}`;
     return `(uint16_t)0x${code.toString(16).padStart(4, '0')}`;
   }
   // QK_MODS: 0x0100–0x1FFF → nested modifier macros, e.g. LCTL(LSFT(KC_BSPC)).
