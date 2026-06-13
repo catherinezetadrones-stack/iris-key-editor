@@ -69,6 +69,7 @@ export default function FirmwarePanel({
   perKeyColors,
   scrollSettings,
   tapDanceKeys,
+  tdKeyAssignments,
   extraMacros,
   profileLoaded = false,
 }) {
@@ -201,6 +202,7 @@ export default function FirmwarePanel({
       perKeyColors,
       scrollSettings,
       tapDanceKeys,
+      tdKeyAssignments,
       extraMacros,
     });
   };

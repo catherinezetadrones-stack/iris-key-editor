@@ -14,6 +14,7 @@ export function buildAllSources({
   perKeyColors,
   scrollSettings,
   tapDanceKeys,
+  tdKeyAssignments,
   extraMacros,
 }) {
   const safePerKey = perKeyColors
@@ -47,7 +48,7 @@ export function buildAllSources({
     },
     {
       name: 'tap_dance_keys.c',
-      content: buildTapDanceCCode(tapDanceKeys ?? {}),
+      content: buildTapDanceCCode(tapDanceKeys ?? {}, tdKeyAssignments ?? []),
     },
     {
       name: 'extra_macros.c',

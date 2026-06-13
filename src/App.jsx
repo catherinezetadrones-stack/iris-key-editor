@@ -1540,6 +1540,7 @@ export default function App() {
                   perKeyColors={lightingPerKeyColors}
                   scrollSettings={scrollSettings}
                   tapDanceKeys={tapDanceKeys}
+                  tdKeyAssignments={tdKeyAssignments}
                   extraMacros={extraMacros}
                   profileLoaded={currentFilePath !== null}
                 />

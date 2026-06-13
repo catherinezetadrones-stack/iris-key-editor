@@ -32,15 +32,31 @@ function layerKeycodeAction(code) {
   return null;
 }
 
+// VIA dynamic macros M(n) = 0x7700 | n play a one-shot sequence. register_code16
+// can't fire them (it would just register the low byte — e.g. M(4)=0x7704 → KC_A),
+// so play the macro on press; there's nothing to release.
+function macroKeycodeAction(code) {
+  if (code >= 0x7700 && code <= 0x771F) {
+    return { press: `dynamic_keymap_macro_send(${code - 0x7700});`, release: null };
+  }
+  return null;
+}
+
+// Keycodes that register_code16/unregister_code16 can't handle (layer switches,
+// dynamic macros) need their own QMK call instead. release === null = nothing to undo.
+function specialKeycodeAction(code) {
+  return layerKeycodeAction(code) ?? macroKeycodeAction(code);
+}
+
 // Press / release statement for a configured action code.
 function pressStmt(code) {
-  const layerAction = layerKeycodeAction(code);
-  return layerAction ? layerAction.press : `register_code16(${keycodeToC(code)});`;
+  const action = specialKeycodeAction(code);
+  return action ? action.press : `register_code16(${keycodeToC(code)});`;
 }
 
 function releaseStmt(code) {
-  const layerAction = layerKeycodeAction(code);
-  if (layerAction) return layerAction.release; // may be null — nothing to undo
+  const action = specialKeycodeAction(code);
+  if (action) return action.release; // may be null — nothing to undo
   return `unregister_code16(${keycodeToC(code)});`;
 }
 
@@ -91,7 +107,7 @@ ${body}
 }`;
 }
 
-export function buildTapDanceCCode(tapDanceKeys) {
+export function buildTapDanceCCode(tapDanceKeys, tdKeyAssignments = []) {
   // Collect unique key IDs across all layers that have any config
   const keyIds = new Set();
   Object.values(tapDanceKeys).forEach(layerObj => {
@@ -99,6 +115,22 @@ export function buildTapDanceCCode(tapDanceKeys) {
       if (TD_FIELDS.some(f => (e[f.key] ?? 0) !== 0)) keyIds.add(keyId);
     });
   });
+
+  // Pin each configured key to its assigned TD(n) index (tdKeyAssignments, the
+  // same n written into the keymap as TD(n) = 0x5700|n) so the generated
+  // tap_dance_actions[] lines up with the keymap — NOT insertion order, which
+  // silently scrambles every tap dance when one is added out of index order.
+  // Unassigned configured keys (or an empty/legacy tdKeyAssignments) fall back
+  // to the next free slot, reproducing the old sequential numbering.
+  const indexById = new Map();
+  (tdKeyAssignments ?? []).forEach((entry, n) => {
+    const id = entry?.keyId;
+    if (id && keyIds.has(id) && !indexById.has(id)) indexById.set(id, n);
+  });
+  let nextFree = indexById.size ? Math.max(...indexById.values()) + 1 : 0;
+  for (const id of keyIds) {
+    if (!indexById.has(id)) indexById.set(id, nextFree++);
+  }
 
   if (keyIds.size === 0) {
     return `// No tap dance keys configured.
@@ -110,7 +142,12 @@ ${buildGetTappingTerm(tapDanceKeys, keyIds)}`;
   }
 
   const stateMap = ['TD_SINGLE_TAP', 'TD_SINGLE_HOLD', 'TD_DOUBLE_TAP', 'TD_DOUBLE_HOLD'];
-  const enumValues = [...keyIds].map(id => `    ${keyIdToEnum(id)}`).join(',\n');
+  // Explicit "= n" values pin each enum to its assigned TD(n) index; the
+  // tap_dance_actions[] designated initializers below then self-place at the
+  // right slot (gaps for unassigned indices are zero-filled by the compiler).
+  const enumValues = [...keyIds]
+    .map(id => `    ${keyIdToEnum(id)} = ${indexById.get(id)}`)
+    .join(',\n');
 
   // Layers (with entries) for one key id, as [layerIdx, entry] pairs.
   const configuredLayers = (id) => Object.entries(tapDanceKeys)
