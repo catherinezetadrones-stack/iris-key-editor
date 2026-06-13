@@ -344,6 +344,8 @@
 }
 
 .td-actions {
+  display: flex;
+  gap: 8px;
   padding: 10px 14px;
   border-top: 1px solid var(--border);
   flex-shrink: 0;
@@ -351,12 +353,40 @@
 }
 
 .td-generate-btn {
-  width: 100%;
+  flex: 1;
   padding: 6px 12px;
   font-size: 0.75rem;
   color: var(--accent-alt);
   border-color: var(--accent-alt);
   opacity: 0.8;
+}
+
+.td-mods-toggle-btn {
+  flex: 1;
+  padding: 6px 12px;
+  font-size: 0.75rem;
+  color: var(--accent-purple);
+  border-color: var(--accent-purple);
+  opacity: 0.8;
+}
+
+.td-mods-toggle-btn:hover:not(:disabled) {
+  opacity: 1;
+  background: rgba(157, 78, 221, 0.08);
+  color: var(--accent-purple);
+  border-color: var(--accent-purple);
+}
+
+.td-mods-toggle-btn.active {
+  opacity: 1;
+  background: rgba(157, 78, 221, 0.18);
+  color: #c191f5;
+  border-color: #c191f5;
+}
+
+.td-mods-toggle-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
 .td-generate-btn:hover:not(:disabled) {

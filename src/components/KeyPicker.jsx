@@ -272,7 +272,7 @@ function composeMods(base, mods) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function KeyPicker({ onSelect, focusRequest, macroDescriptions, tapDanceDescriptions, enableModifiers = false }) {
+export default function KeyPicker({ onSelect, focusRequest, macroDescriptions, tapDanceDescriptions, enableModifiers = false, showModifiers = false }) {
   const [category, setCategory] = useState('Numbers');
   const [search, setSearch] = useState('');
   const [highlightCode, setHighlightCode] = useState(null);
@@ -408,7 +408,7 @@ export default function KeyPicker({ onSelect, focusRequest, macroDescriptions, t
 
       </div>
 
-      {enableModifiers && (
+      {enableModifiers && showModifiers && (
         <div className="key-picker-mods">
           <div className="key-picker-mods-header">
             <span className="key-picker-mods-title">Add modifiers</span>

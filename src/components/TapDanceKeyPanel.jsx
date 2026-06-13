@@ -34,11 +34,16 @@ function TdCodeModal({ code, onClose, copied, onCopy, tapDanceFilePath, onSave, 
 export default function TapDanceKeyPanel({ selectedKey, currentLayer, tapDanceKeys, onTapDanceKeysChange, tapDanceFilePath, tdKeyAssignments = [], onTdKeyAssignmentsChange, onApplyTdAssignment, onClearTdAssignment, tapDanceDescriptions, onTapDanceDescriptionsChange }) {
   const [activeTdField, setActiveTdField] = useState(null);
   const [pickerRequest, setPickerRequest]   = useState(null);
+  const [showMods, setShowMods]             = useState(false);
   const [showCodeModal, setShowCodeModal]   = useState(false);
   const [copied, setCopied]                 = useState(false);
   const [fileSaveStatus, setFileSaveStatus] = useState('');
   const [assignIndexInput, setAssignIndexInput] = useState(0);
   const [assignConflict, setAssignConflict]     = useState('');
+
+  // Keep key selection unobstructed: the "Add modifiers" area starts hidden each
+  // time a different field's picker is opened (or the picker closes).
+  useEffect(() => { setShowMods(false); }, [activeTdField]);
 
   const keyObj = selectedKey
     ? [...HALVES.left, ...HALVES.right].find(
@@ -179,7 +184,7 @@ export default function TapDanceKeyPanel({ selectedKey, currentLayer, tapDanceKe
     if (activeTdField) updateEntry(activeTdField, code);
   };
 
-  const codeContent = buildTapDanceCCode(tapDanceKeys);
+  const codeContent = buildTapDanceCCode(tapDanceKeys, tdKeyAssignments);
 
   const copyCode = () => {
     navigator.clipboard.writeText(codeContent).then(() => {
@@ -308,13 +313,21 @@ export default function TapDanceKeyPanel({ selectedKey, currentLayer, tapDanceKe
                 Selecting: <strong>{FIELDS.find(f => f.key === activeTdField)?.label}</strong>
                 <button className="td-picker-close" onClick={() => setActiveTdField(null)}>✕</button>
               </div>
-              <KeyPicker onSelect={handlePickerSelect} focusRequest={pickerRequest} enableModifiers />
+              <KeyPicker onSelect={handlePickerSelect} focusRequest={pickerRequest} enableModifiers showModifiers={showMods} />
             </div>
           )}
         </>
       )}
 
       <div className="td-actions">
+        <button
+          className={`td-mods-toggle-btn${showMods ? ' active' : ''}`}
+          onClick={() => setShowMods(s => !s)}
+          disabled={!activeTdField}
+          title={activeTdField ? 'Show/hide the modifier toggles in the key picker' : 'Open a key field to add modifiers'}
+        >
+          Add Modifiers
+        </button>
         <button
           className="td-generate-btn"
           onClick={() => setShowCodeModal(true)}

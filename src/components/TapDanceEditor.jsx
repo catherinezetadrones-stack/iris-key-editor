@@ -309,6 +309,7 @@ export default function TapDanceEditor({ device, tapDanceDescriptions, macroDesc
             macroDescriptions={macroDescriptions}
             tapDanceDescriptions={tapDanceDescriptions}
             enableModifiers
+            showModifiers
           />
         </div>
       </div>

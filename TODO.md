@@ -39,6 +39,8 @@ after we attempted to fix this bug above. Now the reponse in the Key Test is muc
 
 _Straightforward changes to the existing interface_
 
+- **`Add modifiers` area in tap dance panel block visible key selection** - Currently it is hard to select another key from the key picker after one tap dance definition has been added. The design and size of the `Add Modifiers` div is perfect but it probably needs to be hidden behing a button. I think the area where "Generate C Code" is should be split in half with two buttons, `Add Mondifiers` being one of them. The color of the new `Add Modifiers` button should something like a complementary deep purple that can work with our color scheme.
+
 ### New App Features
 
 _More substantial additions to the app itself_
