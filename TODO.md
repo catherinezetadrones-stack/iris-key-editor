@@ -17,10 +17,6 @@ and summarize what changed.
 ---
 
 ## UI / UX Bugs
-- **Keyboard overlay layer recognition on `TO(n)` assignments** - I noticed that for layers that I have set to stay on a layer without holding down a modifier dont stay selected in the in the visual key test. If I toggle or just go directly to a layer it should stay in sync with they layer the keyboard is outputting.
-
-> [!Correction] related to previous bug
-after we attempted to fix this bug above. Now the reponse in the Key Test is much slower and the recognition of my `TO(n)` layer still isnt recognized.
 
 ## Firmware Bugs
 - **fw-env pack is missing the tap-dance companion patches** - A fresh install on a new computer fails to compile with `multiple definition of 'get_tapping_term'` (vial.o vs keymap_introspection.o). Root cause: the editor's tap-dance codegen emits a keymap-level `get_tapping_term` that is meant to override the one in `quantum/vial.c`, but vial.c's definition is **strong** by default. The working setup depends on two manual edits to the bundled fw-env tree that are **not tracked in the repo and are lost on every fresh unpack**: (1) `quantum/vial.c` `get_tapping_term` made `__attribute__((weak))`, and (2) `keymaps/vial/config.h` `#define TAPPING_TERM 200`. These were re-applied by hand on this machine to unblock the build. **Durable fix needed:** make these patches survive a fresh install — bake them into the pack so `scripts/build-fw-env-pack.ps1` always stages a patched `vial.c`/`config.h` (e.g. apply a patch step during staging, or build the pack from a source tree that already carries them), so the toolchain pack is self-sufficient and no manual fw-env edits are required after extraction.
@@ -38,8 +34,6 @@ after we attempted to fix this bug above. Now the reponse in the Key Test is muc
 ### App UI / UX Improvements
 
 _Straightforward changes to the existing interface_
-
-- **`Add modifiers` area in tap dance panel block visible key selection** - Currently it is hard to select another key from the key picker after one tap dance definition has been added. The design and size of the `Add Modifiers` div is perfect but it probably needs to be hidden behing a button. I think the area where "Generate C Code" is should be split in half with two buttons, `Add Mondifiers` being one of them. The color of the new `Add Modifiers` button should something like a complementary deep purple that can work with our color scheme.
 
 ### New App Features
 
