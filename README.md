@@ -6,6 +6,8 @@ all from one window.
 
 Built with Tauri v1 + React (Vite) for Windows.
 
+![Iris-LM Editor preview](public/iris-lm-config-preview.PNG)
+
 ---
 
 ## Features
